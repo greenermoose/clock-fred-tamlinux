@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "id": "fred.clock",
+  "name": "Clock",
+  "version": "0.1.0",
+  "author": "Fred (@greenermoose)",
+  "description": "Date/time label with calendar popup and upcoming event countdown badge",
+  "repository": "https://github.com/greenermoose/omarchy-fred-clock",
+  "homepage": "https://github.com/greenermoose/omarchy-fred-clock",
+  "license": "GPL-3.0-or-later",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Clock",
+    "description": "Date/time label with calendar popup and upcoming event countdown badge",
+    "category": "Time",
+    "allowMultiple": false
+  },
+  "omarchy": {
+    "clonedFrom": "omarchy.clock"
+  }
+}

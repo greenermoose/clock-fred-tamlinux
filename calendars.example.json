@@ -1,0 +1,23 @@
+[
+  {
+    "account": "Personal",
+    "name": "Personal Calendar",
+    "url": "https://calendar.google.com/calendar/ical/your-id%40gmail.com/private-xxxx/basic.ics",
+    "color": "#4285f4",
+    "enabled": true
+  },
+  {
+    "account": "Work",
+    "name": "Team Calendar",
+    "url": "https://calendar.google.com/calendar/ical/your-org%40group.calendar.google.com/private-yyyy/basic.ics",
+    "color": "#34a853",
+    "enabled": true
+  },
+  {
+    "account": "Local",
+    "name": "Local Events",
+    "path": "/home/fred/Documents/calendar.ics",
+    "color": "#fbbc05",
+    "enabled": false
+  }
+]
