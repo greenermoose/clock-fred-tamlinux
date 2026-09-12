@@ -4,3 +4,5 @@ __pycache__/
 *.bak*
 *~
 .pytest_cache/
+calendars.json
+events.json
