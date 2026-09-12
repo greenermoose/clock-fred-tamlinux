@@ -29,7 +29,31 @@ DEFAULT_CACHE_PATH = os.path.expanduser("~/.cache/fred.clock/events.json")
 
 
 def get_local_timezone() -> datetime.tzinfo:
-    """Detect system local timezone, falling back to UTC."""
+    """Detect system local timezone using ZoneInfo, falling back to UTC."""
+    tz_env = os.environ.get("TZ")
+    if tz_env:
+        try:
+            return zoneinfo.ZoneInfo(tz_env)
+        except Exception:
+            pass
+
+    try:
+        real_path = os.path.realpath("/etc/localtime")
+        if "zoneinfo/" in real_path:
+            tz_name = real_path.split("zoneinfo/", 1)[1]
+            return zoneinfo.ZoneInfo(tz_name)
+    except Exception:
+        pass
+
+    try:
+        if os.path.exists("/etc/timezone"):
+            with open("/etc/timezone", "r") as f:
+                tz_name = f.read().strip()
+                if tz_name:
+                    return zoneinfo.ZoneInfo(tz_name)
+    except Exception:
+        pass
+
     try:
         local_tz = datetime.datetime.now().astimezone().tzinfo
         if local_tz is not None:
@@ -266,16 +290,31 @@ def expand_event(
         local_start = inst_start.astimezone(local_tz)
         local_end = inst_end.astimezone(local_tz)
 
+        desc = event_data.get("description", "")
+        loc = event_data.get("location", "")
+        meeting_url = ""
+        url_match = re.search(r"https?://(?:meet\.google\.com|[\w-]+\.zoom\.us|teams\.microsoft\.com|[\w-]+\.webex\.com)/[^\s<>'\"`]+", loc + " " + desc)
+        if url_match:
+            meeting_url = url_match.group(0)
+        elif loc.startswith("http://") or loc.startswith("https://"):
+            meeting_url = loc
+
+        end_date_for_key = (local_end - datetime.timedelta(seconds=1)) if is_all_day and local_end > local_start else local_end
+
         expanded.append({
             "id": event_data["id"],
             "summary": event_data["summary"],
             "start": local_start.isoformat(),
             "end": local_end.isoformat(),
+            "dateKey": local_start.strftime("%Y-%m-%d"),
+            "endDateKey": end_date_for_key.strftime("%Y-%m-%d"),
+            "timeStr": "All Day" if is_all_day else f"{local_start.strftime('%H:%M')} – {local_end.strftime('%H:%M')}",
             "startTs": int(local_start.timestamp()),
             "endTs": int(local_end.timestamp()),
             "allDay": is_all_day,
-            "location": event_data.get("location", ""),
-            "description": event_data.get("description", ""),
+            "location": loc,
+            "description": desc,
+            "meetingUrl": meeting_url,
         })
 
     return expanded

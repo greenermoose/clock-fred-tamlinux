@@ -262,6 +262,122 @@ class TestFetchEvents(unittest.TestCase):
             if os.path.exists(out_path):
                 os.unlink(out_path)
 
+    def test_dst_crossing(self):
+        """Verify recurring weekly event preserves local wall-clock time across DST transition."""
+        config_data = [
+            {
+                "account": "Work",
+                "name": "DST Meetings",
+                "path": os.path.join(FIXTURES_DIR, "dst.ics"),
+                "color": "#34a853",
+                "enabled": True,
+            }
+        ]
+
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as cfg:
+            json.dump(config_data, cfg)
+            cfg_path = cfg.name
+
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as out:
+            out_path = out.name
+
+        try:
+            # Oct 19, 2026 EDT
+            test_dt = datetime.datetime(2026, 10, 19, 12, 0, 0, tzinfo=self.ny_tz)
+            cmd = [
+                sys.executable,
+                FETCH_SCRIPT,
+                "--config", cfg_path,
+                "--output", out_path,
+                "--now", str(int(test_dt.timestamp())),
+            ]
+            res = subprocess.run(cmd, capture_output=True, text=True)
+            self.assertEqual(res.returncode, 0)
+
+            with open(out_path, "r") as f:
+                data = json.load(f)
+
+            events = data["events"]
+            self.assertEqual(len(events), 4)
+
+            # All occurrences must maintain 10:00 - 11:00 local time
+            for ev in events:
+                self.assertEqual(ev["timeStr"], "10:00 – 11:00")
+
+            # Oct 27 is EDT (-04:00), Nov 03 is EST (-05:00)
+            starts = {ev["dateKey"]: ev["start"] for ev in events}
+            self.assertTrue(starts["2026-10-27"].endswith("-04:00"))
+            self.assertTrue(starts["2026-11-03"].endswith("-05:00"))
+
+        finally:
+            if os.path.exists(cfg_path):
+                os.unlink(cfg_path)
+            if os.path.exists(out_path):
+                os.unlink(out_path)
+
+    def test_multi_feed_three_accounts(self):
+        """Verify three feeds with distinct accounts and colors parse and render cleanly."""
+        config_data = [
+            {
+                "account": "Work",
+                "name": "Work Syncs",
+                "path": os.path.join(FIXTURES_DIR, "recurring.ics"),
+                "color": "#34a853",
+                "enabled": True,
+            },
+            {
+                "account": "Personal",
+                "name": "Personal Days",
+                "path": os.path.join(FIXTURES_DIR, "all_day.ics"),
+                "color": "#4285f4",
+                "enabled": True,
+            },
+            {
+                "account": "Community",
+                "name": "Community Events",
+                "path": os.path.join(FIXTURES_DIR, "dst.ics"),
+                "color": "#ea4335",
+                "enabled": True,
+            },
+        ]
+
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as cfg:
+            json.dump(config_data, cfg)
+            cfg_path = cfg.name
+
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as out:
+            out_path = out.name
+
+        try:
+            # Sep 14, 2026 EDT
+            test_dt = datetime.datetime(2026, 9, 14, 12, 0, 0, tzinfo=self.ny_tz)
+            cmd = [
+                sys.executable,
+                FETCH_SCRIPT,
+                "--config", cfg_path,
+                "--output", out_path,
+                "--now", str(int(test_dt.timestamp())),
+            ]
+            res = subprocess.run(cmd, capture_output=True, text=True)
+            self.assertEqual(res.returncode, 0)
+
+            with open(out_path, "r") as f:
+                data = json.load(f)
+
+            events = data["events"]
+            accounts = set(e["account"] for e in events)
+            colors = set(e["color"] for e in events)
+
+            self.assertIn("Work", accounts)
+            self.assertIn("Personal", accounts)
+            self.assertEqual(colors, {"#34a853", "#4285f4"})
+
+        finally:
+            if os.path.exists(cfg_path):
+                os.unlink(cfg_path)
+            if os.path.exists(out_path):
+                os.unlink(out_path)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "id": "fred.clock",
   "name": "Clock",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "author": "Fred (@greenermoose)",
-  "description": "Date/time label with calendar popup and upcoming event countdown badge",
+  "description": "Date/time label with upcoming countdown badge, interactive agenda, and multi-calendar sync",
   "repository": "https://github.com/greenermoose/omarchy-fred-clock",
   "homepage": "https://github.com/greenermoose/omarchy-fred-clock",
   "license": "GPL-3.0-or-later",
@@ -16,7 +16,7 @@
   },
   "barWidget": {
     "displayName": "Clock",
-    "description": "Date/time label with calendar popup and upcoming event countdown badge",
+    "description": "Date/time label with upcoming countdown badge, interactive agenda, and multi-calendar sync",
     "category": "Time",
     "allowMultiple": false
   },

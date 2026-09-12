@@ -1,5 +1,6 @@
 import QtQuick
 import Quickshell
+import Quickshell.Io
 import qs.Commons
 import qs.Ui
 import "Model.js" as Model
@@ -34,6 +35,16 @@ Panel {
   //      highlight rolls over without the panel being reopened.
   property date today: new Date()
   readonly property string todayKey: Model.keyForDate(today)
+
+  // Selected date for agenda display (defaults to today)
+  property date selectedDate: today
+  property string selectedDateKey: Model.keyForDate(selectedDate)
+
+  property var eventsData: null
+  property var eventsByDate: ({})
+  property var accountList: ["All"]
+  property string selectedAccount: "All"
+  readonly property var dayFilteredEvents: root.getEventsForDate(selectedDateKey, selectedAccount)
 
   // The month on screen. Stepping moves this and nothing else: the grid is
   // a read-out, not a picker, so there is no per-day cursor to keep in sync.
@@ -85,13 +96,9 @@ Panel {
   readonly property int gutterWidth: Style.space(14)
 
   function open() {
-    refresh()
+    root.today = new Date()
+    if (eventsCache) eventsCache.reload()
     root.controller.show()
-    // Set after showing, not before: showing hands the popout coordinator
-    // over, which closes whichever panel was open, and that close clears the
-    // shared flag. Deferring means the panel taking over always wins, while
-    // a handoff to a panel that does not manage the flag still leaves it
-    // cleared rather than stuck on.
     Qt.callLater(function() {
       if (root.opened) setCenterHoverRevealSuppressed(true)
     })
@@ -125,14 +132,156 @@ Panel {
       root.bar.centerHoverRevealSuppressed = value
   }
 
+  FileView {
+    id: eventsCache
+    path: Quickshell.env("HOME") + "/.cache/fred.clock/events.json"
+    watchChanges: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: root.handleCacheLoaded(text())
+    onLoadFailed: root.handleCacheLoaded("")
+  }
+
+  function handleCacheLoaded(content) {
+    if (!content || content.trim() === "") {
+      root.eventsData = null
+      root.eventsByDate = {}
+      root.accountList = ["All"]
+      return
+    }
+    try {
+      var parsed = JSON.parse(content)
+      root.eventsData = parsed
+      var index = root.buildEventsIndex(parsed.events || [])
+      root.eventsByDate = index.byDate
+      root.accountList = index.accounts
+    } catch (e) {
+      root.eventsData = null
+      root.eventsByDate = {}
+      root.accountList = ["All"]
+    }
+  }
+
+  function buildEventsIndex(events) {
+    var byDate = {}
+    var accounts = {}
+    if (!events) return { byDate: byDate, accounts: ["All"] }
+
+    for (var i = 0; i < events.length; i++) {
+      var ev = events[i]
+      if (ev.account) accounts[ev.account] = true
+      var startKey = ev.dateKey
+      var endKey = ev.endDateKey || startKey
+
+      var sParts = startKey.split("-").map(Number)
+      var eParts = endKey.split("-").map(Number)
+      var cur = new Date(sParts[0], sParts[1] - 1, sParts[2])
+      var end = new Date(eParts[0], eParts[1] - 1, eParts[2])
+
+      var count = 0
+      while (cur <= end && count < 366) {
+        var k = Model.keyForDate(cur)
+        if (!byDate[k]) byDate[k] = []
+        byDate[k].push(ev)
+        cur.setDate(cur.getDate() + 1)
+        count++
+      }
+    }
+    var accList = ["All"]
+    for (var acc in accounts) {
+      accList.push(acc)
+    }
+    return { byDate: byDate, accounts: accList }
+  }
+
+  function getEventsForDate(dateKey, accountFilter) {
+    var list = (root.eventsByDate && root.eventsByDate[dateKey]) || []
+    if (!accountFilter || accountFilter === "All") return list
+    var filtered = []
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].account === accountFilter) {
+        filtered.push(list[i])
+      }
+    }
+    return filtered
+  }
+
+  function dotColors(events) {
+    if (!events || events.length === 0) return []
+    var colors = []
+    for (var i = 0; i < events.length; i++) {
+      var c = events[i].color || "#4285f4"
+      if (colors.indexOf(c) === -1) {
+        colors.push(c)
+        if (colors.length >= 4) break
+      }
+    }
+    return colors
+  }
+
+  function selectDateKey(key, year, month, day) {
+    root.selectedDateKey = key
+    root.selectedDate = new Date(year, month, day)
+    if (year !== root.viewYear || month !== root.viewMonth) {
+      root.viewYear = year
+      root.viewMonth = month
+    }
+  }
+
+  function selectDateString(key) {
+    if (!key || typeof key !== "string") return
+    var parts = key.split("-").map(Number)
+    if (parts.length === 3) {
+      selectDateKey(key, parts[0], parts[1] - 1, parts[2])
+      if (!root.opened) {
+        root.controller.show()
+      }
+    }
+  }
+
+  function openMeetingUrl(url) {
+    if (!url || typeof url !== "string") return
+    var trimmed = url.trim()
+    if (!/^https?:\/\/[^\s<>'"]+$/i.test(trimmed)) return
+    Quickshell.execDetached(["xdg-open", trimmed])
+  }
+
+  function copyDayMarkdown() {
+    var evs = root.dayFilteredEvents
+    var dateTitle = Qt.formatDate(root.selectedDate, "dddd, MMMM d, yyyy")
+    var md = "### " + dateTitle + "\n\n"
+    if (!evs || evs.length === 0) {
+      md += "_No events scheduled._\n"
+    } else {
+      for (var i = 0; i < evs.length; i++) {
+        var ev = evs[i]
+        var timePart = ev.timeStr || (ev.allDay ? "All Day" : "")
+        var line = "- **" + timePart + "**: " + (ev.summary || "Event")
+        if (ev.meetingUrl) {
+          line += " ([Join](" + ev.meetingUrl + "))"
+        }
+        if (ev.location && ev.location !== ev.meetingUrl) {
+          line += " — " + ev.location
+        }
+        md += line + "\n"
+      }
+    }
+
+    Quickshell.execDetached(["bash", "-c", "printf %s " + Util.shellQuote(md) + " | wl-copy"])
+    Quickshell.execDetached(["omarchy-notification-send", "Agenda Copied", dateTitle + " agenda copied to clipboard"])
+  }
+
   function refresh() {
     root.today = new Date()
     root.goToToday()
+    if (eventsCache) eventsCache.reload()
   }
 
   function goToToday() {
     root.viewYear = today.getFullYear()
     root.viewMonth = today.getMonth()
+    root.selectedDate = root.today
+    root.selectedDateKey = root.todayKey
   }
 
   function moveMonth(delta) {
@@ -230,8 +379,13 @@ Panel {
     onDateChanged: {
       if (Model.keyForDate(clock.date) === String(root.todayKey)) return
       var followToday = root.viewingCurrentMonth
+      var wasOnToday = root.selectedDateKey === root.todayKey
       root.today = clock.date
       if (followToday) root.goToToday()
+      else if (wasOnToday) {
+        root.selectedDate = root.today
+        root.selectedDateKey = root.todayKey
+      }
     }
   }
 
@@ -264,6 +418,7 @@ Panel {
         else if (t === "}") root.moveYear(1)
         else if (t === "t" || t === "T") root.goToToday()
         else if (t === "w" || t === "W") root.toggleWeekStart()
+        else if (t === "y" || t === "Y") root.copyDayMarkdown()
       }
 
       Flickable {
@@ -660,25 +815,60 @@ Panel {
                     Rectangle {
                       required property var modelData
 
+                      readonly property bool isSelected: modelData.key === root.selectedDateKey
+                      readonly property var dayEvents: (root.eventsByDate && root.eventsByDate[modelData.key]) || []
+
                       width: root.cellWidth
                       height: root.cellHeight
                       radius: Style.cornerRadius
-                      // Today is outlined, not filled: a lit-up block shouts
-                      // over a grid this quiet.
-                      color: "transparent"
-                      border.width: modelData.today ? Style.spacing.hairline : 0
-                      border.color: Style.normalBorderFor(root.contentForeground, Color.accent)
+                      color: isSelected
+                        ? Style.selectedFillFor(root.contentForeground, Color.accent)
+                        : (cellMouse.containsMouse ? Style.hoverFillFor(root.contentForeground, Color.accent) : "transparent")
+                      border.width: modelData.today ? Style.spacing.hairline : (isSelected ? Style.spacing.hairline : 0)
+                      border.color: modelData.today
+                        ? Style.normalBorderFor(root.contentForeground, Color.accent)
+                        : (isSelected ? Style.selectedStateColor(root.contentForeground, Color.accent) : "transparent")
 
                       Text {
                         textFormat: Text.PlainText
                         anchors.centerIn: parent
+                        anchors.verticalCenterOffset: dayEvents.length > 0 ? -Style.space(3) : 0
                         text: modelData.day
-                        color: modelData.inMonth
-                          ? (modelData.weekend ? Qt.darker(root.contentForeground, 1.45) : root.contentForeground)
-                          : Qt.darker(root.contentForeground, 2.2)
+                        color: isSelected
+                          ? Style.selectedStateColor(root.contentForeground, Color.accent)
+                          : (modelData.inMonth
+                              ? (modelData.weekend ? Qt.darker(root.contentForeground, 1.45) : root.contentForeground)
+                              : Qt.darker(root.contentForeground, 2.2))
                         font.family: root.contentFontFamily
                         font.pixelSize: Style.font.body
-                        font.bold: modelData.today
+                        font.bold: modelData.today || isSelected
+                      }
+
+                      Row {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        anchors.bottom: parent.bottom
+                        anchors.bottomMargin: Style.space(3)
+                        spacing: Style.space(2)
+                        visible: dayEvents.length > 0
+
+                        Repeater {
+                          model: root.dotColors(dayEvents)
+                          Rectangle {
+                            required property string modelData
+                            width: Style.space(4)
+                            height: Style.space(4)
+                            radius: width / 2
+                            color: modelData
+                          }
+                        }
+                      }
+
+                      MouseArea {
+                        id: cellMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.selectDateKey(modelData.key, modelData.year, modelData.month, modelData.day)
                       }
                     }
                   }
@@ -752,6 +942,311 @@ Panel {
                 foreground: root.contentForeground
                 fontFamily: root.contentFontFamily
                 onClicked: root.moveMonth(1)
+              }
+            }
+          }
+
+          // ---- Agenda Section ----
+          Item {
+            width: parent.width
+            height: agendaColumn.implicitHeight + Style.space(12)
+
+            Column {
+              id: agendaColumn
+              anchors.horizontalCenter: parent.horizontalCenter
+              width: gridColumn.width
+              spacing: Style.space(8)
+
+              PanelSeparator {
+                strength: 0.15
+                width: parent.width
+              }
+
+              // Header: Selected date title + Today pill + Copy button
+              Item {
+                width: parent.width
+                height: Math.max(agendaDateRow.implicitHeight, agendaCopyBtn.height)
+
+                Row {
+                  id: agendaDateRow
+                  anchors.left: parent.left
+                  anchors.verticalCenter: parent.verticalCenter
+                  spacing: Style.space(8)
+
+                  Text {
+                    id: agendaDateLabel
+                    textFormat: Text.PlainText
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: Qt.formatDate(root.selectedDate, "dddd, MMMM d").toUpperCase()
+                    color: Qt.darker(root.contentForeground, 1.3)
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.caption
+                    font.letterSpacing: 1
+                    font.bold: true
+                  }
+
+                  Rectangle {
+                    visible: root.selectedDateKey === root.todayKey
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: todayText.implicitWidth + Style.space(10)
+                    height: Style.space(16)
+                    radius: Style.cornerRadius > 0 ? height / 2 : 0
+                    color: Style.selectedFillFor(root.contentForeground, Color.accent)
+                    border.width: Style.spacing.hairline
+                    border.color: Style.selectedStateColor(root.contentForeground, Color.accent)
+
+                    Text {
+                      id: todayText
+                      anchors.centerIn: parent
+                      text: "TODAY"
+                      color: Style.selectedStateColor(root.contentForeground, Color.accent)
+                      font.family: root.contentFontFamily
+                      font.pixelSize: Style.font.caption
+                      font.letterSpacing: 1
+                      font.bold: true
+                    }
+                  }
+                }
+
+                PanelActionButton {
+                  id: agendaCopyBtn
+                  anchors.right: parent.right
+                  anchors.verticalCenter: parent.verticalCenter
+                  iconText: "󰆏"
+                  tooltipText: "Copy agenda as Markdown (y)"
+                  foreground: root.contentForeground
+                  fontFamily: root.contentFontFamily
+                  onClicked: root.copyDayMarkdown()
+                }
+              }
+
+              // Account filter chips (shown if multiple accounts exist)
+              Item {
+                visible: root.accountList.length > 2
+                width: parent.width
+                height: visible ? filterRow.height : 0
+
+                Row {
+                  id: filterRow
+                  spacing: Style.space(6)
+
+                  Repeater {
+                    model: root.accountList
+
+                    Rectangle {
+                      required property string modelData
+                      readonly property bool isActive: root.selectedAccount === modelData
+                      width: chipText.implicitWidth + Style.space(16)
+                      height: Style.space(22)
+                      radius: Style.cornerRadius > 0 ? height / 2 : 0
+                      color: isActive
+                        ? Style.selectedFillFor(root.contentForeground, Color.accent)
+                        : (chipMouse.containsMouse
+                            ? Style.hoverFillFor(root.contentForeground, Color.accent)
+                            : "transparent")
+                      border.width: Style.spacing.hairline
+                      border.color: isActive
+                        ? Style.selectedStateColor(root.contentForeground, Color.accent)
+                        : Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.15)
+
+                      Text {
+                        id: chipText
+                        anchors.centerIn: parent
+                        text: modelData
+                        color: isActive
+                          ? Style.selectedStateColor(root.contentForeground, Color.accent)
+                          : Qt.darker(root.contentForeground, 1.4)
+                        font.family: root.contentFontFamily
+                        font.pixelSize: Style.font.caption
+                        font.bold: isActive
+                      }
+
+                      MouseArea {
+                        id: chipMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.selectedAccount = modelData
+                      }
+                    }
+                  }
+                }
+              }
+
+              // Empty state
+              Rectangle {
+                visible: root.dayFilteredEvents.length === 0
+                width: parent.width
+                height: Style.space(48)
+                radius: Style.cornerRadius
+                color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.04)
+                border.width: Style.spacing.hairline
+                border.color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.08)
+
+                Row {
+                  anchors.centerIn: parent
+                  spacing: Style.space(8)
+
+                  Text {
+                    text: "󰃭"
+                    color: Qt.darker(root.contentForeground, 1.8)
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.body
+                    anchors.verticalCenter: parent.verticalCenter
+                  }
+
+                  Text {
+                    text: "No events scheduled"
+                    color: Qt.darker(root.contentForeground, 1.6)
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.bodySmall
+                    anchors.verticalCenter: parent.verticalCenter
+                  }
+                }
+              }
+
+              // Event cards list
+              Repeater {
+                model: root.dayFilteredEvents
+
+                Rectangle {
+                  required property var modelData
+                  width: parent.width
+                  height: Math.max(cardContentCol.implicitHeight + Style.space(16), Style.space(48))
+                  radius: Style.cornerRadius
+                  color: cardMouse.containsMouse
+                    ? Style.hoverFillFor(root.contentForeground, Color.accent)
+                    : Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.04)
+                  border.width: Style.spacing.hairline
+                  border.color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.1)
+
+                  // Left edge color strip
+                  Rectangle {
+                    anchors.left: parent.left
+                    anchors.top: parent.top
+                    anchors.bottom: parent.bottom
+                    anchors.margins: Style.space(4)
+                    width: Style.space(3)
+                    radius: width / 2
+                    color: modelData.color || "#4285f4"
+                  }
+
+                  // Content column
+                  Column {
+                    id: cardContentCol
+                    anchors.left: parent.left
+                    anchors.leftMargin: Style.space(16)
+                    anchors.right: joinBtn.visible ? joinBtn.left : parent.right
+                    anchors.rightMargin: Style.space(10)
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: Style.space(2)
+
+                    Row {
+                      spacing: Style.space(8)
+
+                      Text {
+                        textFormat: Text.PlainText
+                        text: modelData.timeStr || (modelData.allDay ? "All Day" : "")
+                        color: Qt.darker(root.contentForeground, 1.3)
+                        font.family: root.contentFontFamily
+                        font.pixelSize: Style.font.caption
+                        font.bold: true
+                      }
+
+                      Text {
+                        textFormat: Text.PlainText
+                        visible: !!modelData.account
+                        text: "• " + modelData.account
+                        color: Qt.darker(root.contentForeground, 1.8)
+                        font.family: root.contentFontFamily
+                        font.pixelSize: Style.font.caption
+                      }
+                    }
+
+                    Text {
+                      textFormat: Text.PlainText
+                      width: parent.width
+                      text: modelData.summary || "Event"
+                      color: root.contentForeground
+                      font.family: root.contentFontFamily
+                      font.pixelSize: Style.font.bodySmall
+                      font.bold: true
+                      elide: Text.ElideRight
+                    }
+
+                    Text {
+                      textFormat: Text.PlainText
+                      visible: !!modelData.location && !modelData.location.startsWith("http")
+                      width: parent.width
+                      text: "󰍎 " + modelData.location
+                      color: Qt.darker(root.contentForeground, 1.7)
+                      font.family: root.contentFontFamily
+                      font.pixelSize: Style.font.caption
+                      elide: Text.ElideRight
+                    }
+                  }
+
+                  // Join button (if meeting URL exists)
+                  Rectangle {
+                    id: joinBtn
+                    visible: !!modelData.meetingUrl && modelData.meetingUrl !== ""
+                    anchors.right: parent.right
+                    anchors.rightMargin: Style.space(10)
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: joinRow.width + Style.space(16)
+                    height: Style.space(26)
+                    radius: Style.cornerRadius > 0 ? height / 2 : 0
+                    color: joinMouse.containsMouse
+                      ? Style.selectedStateColor(root.contentForeground, Color.accent)
+                      : Style.selectedFillFor(root.contentForeground, Color.accent)
+                    border.width: Style.spacing.hairline
+                    border.color: Style.selectedStateColor(root.contentForeground, Color.accent)
+
+                    Row {
+                      id: joinRow
+                      anchors.centerIn: parent
+                      spacing: Style.space(4)
+
+                      Text {
+                        text: "󰅟"
+                        color: joinMouse.containsMouse ? Color.background : root.contentForeground
+                        font.family: root.contentFontFamily
+                        font.pixelSize: Style.font.caption
+                        anchors.verticalCenter: parent.verticalCenter
+                      }
+
+                      Text {
+                        text: "Join"
+                        color: joinMouse.containsMouse ? Color.background : root.contentForeground
+                        font.family: root.contentFontFamily
+                        font.pixelSize: Style.font.caption
+                        font.bold: true
+                        anchors.verticalCenter: parent.verticalCenter
+                      }
+                    }
+
+                    MouseArea {
+                      id: joinMouse
+                      anchors.fill: parent
+                      hoverEnabled: true
+                      cursorShape: Qt.PointingHandCursor
+                      onClicked: root.openMeetingUrl(modelData.meetingUrl)
+                    }
+
+                    PanelToolTip {
+                      visible: joinMouse.containsMouse
+                      text: modelData.meetingUrl
+                      fontFamily: root.contentFontFamily
+                    }
+                  }
+
+                  MouseArea {
+                    id: cardMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    acceptedButtons: Qt.NoButton
+                  }
+                }
               }
             }
           }

@@ -1,6 +1,6 @@
 # Clock with Countdown Badge (`fred.clock`)
 
-An opinionated Omarchy shell bar widget and calendar panel featuring upcoming event countdowns, multi-calendar support, and seamless in-place replacement of the stock Omarchy clock.
+Fred's Omarchy clock and calendar plugin, a shell bar widget featuring upcoming event countdowns, multi-calendar support, and seamless in-place replacement of the stock Omarchy clock.
 
 ![Clock with Countdown Badge](assets/screenshot.png)
 
@@ -8,23 +8,28 @@ An opinionated Omarchy shell bar widget and calendar panel featuring upcoming ev
 
 ## Overview
 
-`fred.clock` replaces the default `omarchy.clock` widget in Omarchy's status bar, preserving all existing settings while adding upcoming event countdown badges directly to the bar:
+`fred.clock` replaces the default `omarchy.clock` widget in Omarchy's status bar, preserving all existing settings while adding upcoming event countdown badges and a rich read-only interactive agenda:
 
 | Feature | Description |
 | :--- | :--- |
 | **In-Place Replacement** | Replaces `omarchy.clock` in-place using Omarchy's `clonedFrom` routing. Stock date/time formats and cycle rings carry over automatically. |
 | **Countdown Badge** | Displays upcoming events starting within 60 minutes directly on the bar (`HH:mm • Team Sync in 12m` or `Team Sync now`). |
 | **Multi-Calendar Sync** | Fetches read-only schedules from Google Calendar or any iCalendar (`.ics`) secret URLs and local files with zero external dependencies. |
-| **Interactive Calendar** | Full calendar popup with month grid, week-start toggle, ISO week numbers, and timezone switcher. |
+| **Interactive Agenda** | Selected day agenda list under the month grid with event times, color strips, meeting join buttons, and empty-state handling. |
+| **Event Dots on Grid** | Up to 4 colored indicator dots on days with scheduled events matching calendar feed colors. |
+| **Account Filter Chips** | Quick multi-account filtering (e.g. `All`, `Work`, `Personal`, `Projects`) directly in the agenda. |
+| **1-Click Meeting Join** | Automatically detects Google Meet, Zoom, Teams, and Webex links with safe, non-blocking `xdg-open` launches. |
+| **Markdown Copy** | Copy the selected day's complete agenda as structured Markdown (`y` hotkey or toolbar button). |
 
 ---
 
 ## Features
 
 - **Next-Event Countdown**: When an event is within 60 minutes (configurable via `badgeMinutes`), the bar widget displays the event title and time remaining.
+- **Rich Interactive Agenda**: Selecting any day in the month grid reveals its scheduled agenda cards, times, accounts, and meeting links.
 - **Privacy-First & Read-Only**: Consumes private `.ics` subscription URLs via standard HTTP GET. No OAuth tokens, no write permissions, no risk of accidental modifications or unwanted invite dispatches.
 - **Zero Daemon Dependencies**: Uses Python 3 standard library only (`ThreadPoolExecutor`, `urllib`, `zoneinfo`) for background fetching without extra background daemons.
-- **Robust Recurrence**: Supports standard RFC 5545 recurrence rules (`RRULE`), exclusions (`EXDATE`), and timezone normalization.
+- **Robust Recurrence & Timezones**: Supports standard RFC 5545 recurrence rules (`RRULE`), exclusions (`EXDATE`), all-day events, and wall-clock time preservation across daylight saving transitions (DST).
 - **Non-Blocking Quickshell Integration**: Events are cached atomically at `~/.cache/fred.clock/events.json` (mode 0600) and watched reactively by Quickshell.
 
 ---
@@ -92,9 +97,19 @@ Inline widget settings in `~/.config/omarchy/shell.json`:
 
 ## Interactions & Shortcuts
 
-- **Left Click**: Open / close the calendar panel.
-- **Right Click**: Cycle through common date and time formats.
-- **Middle Click**: Open the Omarchy timezone selector (`omarchy-menu-timezone`).
+### Bar
+- **Left Click**: Open / close the calendar and agenda panel.
+- **Right Click**: Cycle through configured date and time formats.
+- **Middle Click**: Open the Omarchy timezone switcher (`omarchy-menu-timezone`).
+
+### Agenda Panel
+- **Click Day Cell**: Select that date and display its agenda.
+- **`y` / `Y`** (or copy button): Copy the selected day's agenda as Markdown to clipboard.
+- **`t` / `T`** (or hero date click): Return to today.
+- **`[` / `]`** (or chevrons / mouse wheel): Previous / next month.
+- **`{` / `}`**: Previous / next year.
+- **`w` / `W`** (or "W" heading click): Toggle week start day (Sunday vs. Monday).
+- **Escape**: Close the panel.
 
 ---
 

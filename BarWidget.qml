@@ -252,6 +252,17 @@ BarWidget {
     function show(): void { root.open() }
     function hide(): void { root.close() }
     function toggle(): void { root.togglePanel() }
+    function selectDate(key: string): void {
+      if (panelLoader.item && panelLoader.item.selectDateString) {
+        panelLoader.item.selectDateString(key)
+        root.open()
+      }
+    }
+    function copyAgenda(): void {
+      if (panelLoader.item && panelLoader.item.copyDayMarkdown) {
+        panelLoader.item.copyDayMarkdown()
+      }
+    }
   }
 
   WidgetButton {
