@@ -152,6 +152,10 @@ sed -i 's/"centerAnchor": "fred.clock"/"centerAnchor": "omarchy.clock"/' ~/.conf
 omarchy plugin remove fred.clock
 ```
 
+## Acknowledgments
+
+Developed with the assistance of [Antigravity](https://antigravity.google) (Google DeepMind), which contributed to the multi-calendar sync architecture, upcoming event countdown badge, and interactive agenda panel.
+
 ---
 
 ## License
