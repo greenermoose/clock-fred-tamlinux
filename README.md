@@ -68,9 +68,9 @@ Configure your calendars in `~/.config/fred.clock/calendars.json` (permissions `
     "enabled": true
   },
   {
-    "account": "Work",
-    "name": "Team Calendar",
-    "url": "https://calendar.google.com/calendar/ical/your-org%40group.calendar.google.com/private-yyyy/basic.ics",
+    "account": "Family",
+    "name": "Family Events",
+    "url": "https://calendar.google.com/calendar/ical/your-group%40group.calendar.google.com/private-yyyy/basic.ics",
     "color": "#34a853",
     "enabled": true
   },
@@ -83,6 +83,36 @@ Configure your calendars in `~/.config/fred.clock/calendars.json` (permissions `
   }
 ]
 ```
+
+#### Finding Your Google Calendar Secret URL
+
+1. In [Google Calendar](https://calendar.google.com), click the **⚙️ Settings** icon in the upper right.
+2. In the left sidebar under **Settings for my calendars**, click the calendar you wish to sync.
+3. Scroll down to the **Integrate calendar** section.
+4. Copy the **"Secret address in iCal format"** URL (*not* the public address).
+5. Paste the copied URL into the `"url"` field of your `calendars.json`.
+
+#### Feed Properties
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `account` | string | Category label shown on event cards and used for agenda filter chips (e.g. `Personal`, `Work`). |
+| `name` | string | Descriptive calendar name (e.g. `Primary`, `Family`). |
+| `url` | string | Secret `.ics` HTTP/HTTPS subscription URL. |
+| `path` | string | Absolute or home-relative path to a local `.ics` file (alternative to `url`). |
+| `color` | string | Hex color code (e.g. `"#4285f4"`) for grid dots and event card strips. |
+| `enabled` | boolean | Set to `false` to temporarily skip fetching this feed without removing it. |
+
+### Automatic Synchronization
+
+Events are pulled and cached automatically in the background—**no terminal commands or daemon setups are required**:
+
+- **Instant on Save**: The bar widget watches `~/.config/fred.clock/calendars.json`. The moment you save changes to your feeds, an immediate background fetch is triggered.
+- **Periodic Background Sync**: Automatically checks and refreshes all enabled feeds every 15 minutes.
+- **On Panel Open**: Opening the calendar panel checks cache freshness and refreshes events if older than 5 minutes.
+- **Shell Startup**: Fetches automatically whenever your desktop session initializes.
+- **Manual (Optional)**: If you ever want to force a refresh from the terminal: `python3 ~/.config/omarchy/plugins/fred.clock/fetch-events.py`
+
 
 ### Bar Settings
 

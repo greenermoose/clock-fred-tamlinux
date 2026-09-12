@@ -53,6 +53,14 @@ BarWidget {
   }
 
   FileView {
+    id: calendarsConfig
+    path: Quickshell.env("HOME") + "/.config/fred.clock/calendars.json"
+    watchChanges: true
+    printErrors: false
+    onFileChanged: root.runFetch()
+  }
+
+  FileView {
     id: eventsCache
     path: Quickshell.env("HOME") + "/.cache/fred.clock/events.json"
     watchChanges: true
