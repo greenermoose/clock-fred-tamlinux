@@ -307,7 +307,7 @@ Panel {
       }
     }
 
-    wlCopyProc.stdinText = md
+    wlCopyProc.args = ["--", md]
     wlCopyProc.launch()
     notify("Agenda Copied", dateTitle + " agenda copied to clipboard")
   }
