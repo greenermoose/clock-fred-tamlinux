@@ -239,11 +239,51 @@ Panel {
     }
   }
 
+  readonly property string omarchyPath: Quickshell.env("OMARCHY_PATH") || ""
+  readonly property var notifyEnv: ["HOME", "XDG_RUNTIME_DIR", "WAYLAND_DISPLAY", "DBUS_SESSION_BUS_ADDRESS", "OMARCHY_PATH"]
+  readonly property var xdgOpenEnv: [
+    "HOME", "LANG", "XDG_RUNTIME_DIR", "WAYLAND_DISPLAY", "DISPLAY",
+    "DBUS_SESSION_BUS_ADDRESS", "XDG_CURRENT_DESKTOP", "XDG_SESSION_TYPE",
+    "XDG_DATA_HOME", "XDG_DATA_DIRS", "XDG_CONFIG_HOME", "XDG_CONFIG_DIRS",
+    "HYPRLAND_INSTANCE_SIGNATURE"
+  ]
+
+  Launch {
+    id: notifyProc
+    exe: root.omarchyPath !== "" ? root.omarchyPath + "/bin/omarchy-notification-send" : ""
+    envKeys: root.notifyEnv
+    deadlineMs: 10000
+  }
+
+  Launch {
+    id: xdgOpenProc
+    exe: "/usr/bin/xdg-open"
+    envKeys: root.xdgOpenEnv
+    deadlineMs: 10000
+  }
+
+  Launch {
+    id: wlCopyProc
+    exe: "/usr/bin/wl-copy"
+    envKeys: ["XDG_RUNTIME_DIR", "WAYLAND_DISPLAY"]
+    deadlineMs: 10000
+  }
+
+  function notify(title, message) {
+    if (!root.omarchyPath || root.omarchyPath === "") return
+    var truncTitle = String(title || "").slice(0, 200)
+    var truncMsg = String(message || "").slice(0, 200)
+    notifyProc.args = [truncTitle, truncMsg]
+    notifyProc.launch()
+  }
+
   function openMeetingUrl(url) {
     if (!url || typeof url !== "string") return
     var trimmed = url.trim()
+    if (trimmed.length > 2048) return
     if (!/^https?:\/\/[^\s<>'"]+$/i.test(trimmed)) return
-    Quickshell.execDetached(["xdg-open", trimmed])
+    xdgOpenProc.args = [trimmed]
+    xdgOpenProc.launch()
   }
 
   function copyDayMarkdown() {
@@ -267,12 +307,12 @@ Panel {
       }
     }
 
-    Quickshell.execDetached(["bash", "-c", "printf %s " + Util.shellQuote(md) + " | wl-copy"])
-    Quickshell.execDetached(["omarchy-notification-send", "Agenda Copied", dateTitle + " agenda copied to clipboard"])
+    wlCopyProc.stdinText = md
+    wlCopyProc.launch()
+    notify("Agenda Copied", dateTitle + " agenda copied to clipboard")
   }
 
   property bool addEventOpen: false
-  readonly property string manageScript: Quickshell.env("HOME") + "/.config/omarchy/plugins/fred.clock/manage-event.py"
 
   function toggleAddEvent() {
     root.addEventOpen = !root.addEventOpen
@@ -288,10 +328,14 @@ Panel {
 
   function submitNewEvent(title, allDay, startTime, endTime, location, targetDate) {
     if (!title || !title.trim()) return
+    if (root.hostWidget && root.hostWidget.manageProc && root.hostWidget.manageProc.running) {
+      notify("Calendar Busy", "Another calendar update is in progress")
+      return
+    }
     var finalDate = targetDate || root.selectedDateKey || root.todayKey
+    var script = Model.helperPath("manage-event.py")
     var args = [
-      "python3",
-      root.manageScript,
+      script,
       "add",
       "--date", finalDate,
       "--summary", title.trim()
@@ -305,21 +349,31 @@ Panel {
     if (location && location.trim()) {
       args.push("--location", location.trim())
     }
-    Quickshell.execDetached(args)
-    Quickshell.execDetached(["omarchy-notification-send", "Event Added", title.trim() + " (" + finalDate + ")"])
+    if (root.hostWidget && root.hostWidget.manageProc) {
+      root.hostWidget.manageProc.args = args
+      root.hostWidget.manageProc.launch()
+    }
+    notify("Event Added", title.trim() + " (" + finalDate + ")")
     root.closeAddEvent()
   }
 
   function deleteLocalEvent(eventUid) {
     if (!eventUid) return
+    if (root.hostWidget && root.hostWidget.manageProc && root.hostWidget.manageProc.running) {
+      notify("Calendar Busy", "Another calendar update is in progress")
+      return
+    }
+    var script = Model.helperPath("manage-event.py")
     var args = [
-      "python3",
-      root.manageScript,
+      script,
       "delete",
       "--uid", eventUid
     ]
-    Quickshell.execDetached(args)
-    Quickshell.execDetached(["omarchy-notification-send", "Event Deleted", "Local event removed"])
+    if (root.hostWidget && root.hostWidget.manageProc) {
+      root.hostWidget.manageProc.args = args
+      root.hostWidget.manageProc.launch()
+    }
+    notify("Event Deleted", "Local event removed")
   }
 
   function refresh() {

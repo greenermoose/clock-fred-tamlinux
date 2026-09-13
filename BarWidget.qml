@@ -39,16 +39,45 @@ BarWidget {
     ? displayText + " • " + countdownBadge
     : displayText
 
-  readonly property string fetchScript: Quickshell.env("HOME") + "/.config/omarchy/plugins/fred.clock/fetch-events.py"
+  readonly property string omarchyPath: Quickshell.env("OMARCHY_PATH") || ""
+  readonly property var pyEnv: ["HOME", "TZ", "LANG", "XDG_CONFIG_HOME", "XDG_CACHE_HOME"]
+  readonly property var notifyEnv: ["HOME", "XDG_RUNTIME_DIR", "WAYLAND_DISPLAY", "DBUS_SESSION_BUS_ADDRESS", "OMARCHY_PATH"]
 
-  Process {
+  readonly property alias manageProc: manageProc
+
+  Launch {
     id: fetchProc
-    command: ["python3", root.fetchScript]
+    exe: "/usr/bin/python3"
+    args: [Model.helperPath("fetch-events.py")]
+    envKeys: root.pyEnv
+    deadlineMs: 60000
+  }
+
+  Launch {
+    id: manageProc
+    exe: "/usr/bin/python3"
+    envKeys: root.pyEnv
+    deadlineMs: 20000
+  }
+
+  Launch {
+    id: notifyProc
+    exe: root.omarchyPath !== "" ? root.omarchyPath + "/bin/omarchy-notification-send" : ""
+    envKeys: root.notifyEnv
+    deadlineMs: 10000
+  }
+
+  function notify(title, message) {
+    if (!root.omarchyPath || root.omarchyPath === "") return
+    var truncTitle = String(title || "").slice(0, 200)
+    var truncMsg = String(message || "").slice(0, 200)
+    notifyProc.args = [truncTitle, truncMsg]
+    notifyProc.launch()
   }
 
   function runFetch() {
     if (!fetchProc.running) {
-      fetchProc.running = true
+      fetchProc.launch()
     }
   }
 
@@ -296,9 +325,13 @@ BarWidget {
       }
     }
     function createEvent(summary: string, date: string, allDay: string, startTime: string, endTime: string, location: string): void {
+      if (manageProc.running) {
+        root.notify("Calendar Busy", "Another calendar update is in progress")
+        return
+      }
       var isAllDay = (allDay === "true" || allDay === "1" || allDay === "yes")
-      var script = Quickshell.env("HOME") + "/.config/omarchy/plugins/fred.clock/manage-event.py"
-      var args = ["python3", script, "add", "--date", date, "--summary", summary]
+      var script = Model.helperPath("manage-event.py")
+      var args = [script, "add", "--date", date, "--summary", summary]
       if (isAllDay) {
         args.push("--all-day")
       } else {
@@ -308,13 +341,19 @@ BarWidget {
       if (location && location.trim() !== "") {
         args.push("--location", location.trim())
       }
-      Quickshell.execDetached(args)
-      Quickshell.execDetached(["omarchy-notification-send", "Event Added", summary + " (" + date + ")"])
+      manageProc.args = args
+      manageProc.launch()
+      root.notify("Event Added", summary + " (" + date + ")")
     }
     function deleteEvent(uid: string): void {
-      var script = Quickshell.env("HOME") + "/.config/omarchy/plugins/fred.clock/manage-event.py"
-      Quickshell.execDetached(["python3", script, "delete", "--uid", uid])
-      Quickshell.execDetached(["omarchy-notification-send", "Event Deleted", "Local event removed"])
+      if (manageProc.running) {
+        root.notify("Calendar Busy", "Another calendar update is in progress")
+        return
+      }
+      var script = Model.helperPath("manage-event.py")
+      manageProc.args = [script, "delete", "--uid", uid]
+      manageProc.launch()
+      root.notify("Event Deleted", "Local event removed")
     }
   }
 

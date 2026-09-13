@@ -267,6 +267,36 @@ function stepMonth(year, month, delta) {
   return { year: target.getFullYear(), month: target.getMonth() }
 }
 
+function pickEnv(keys, extra) {
+  var env = {}
+  if (extra) {
+    for (var k in extra) {
+      if (Object.prototype.hasOwnProperty.call(extra, k) && extra[k] !== undefined && extra[k] !== null && extra[k] !== "") {
+        env[k] = String(extra[k])
+      }
+    }
+  }
+  if (keys && typeof Quickshell !== "undefined" && Quickshell.env) {
+    for (var i = 0; i < keys.length; i++) {
+      var key = keys[i]
+      var val = Quickshell.env(key)
+      if (val !== undefined && val !== null && val !== "") {
+        env[key] = String(val)
+      }
+    }
+  }
+  return env
+}
+
+function helperPath(name) {
+  if (typeof Qt === "undefined" || !Qt.resolvedUrl) return name
+  var url = String(Qt.resolvedUrl(name))
+  if (url.indexOf("file://") === 0) {
+    url = url.substring(7)
+  }
+  return decodeURIComponent(url)
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     dateKey: dateKey,
@@ -291,6 +321,9 @@ if (typeof module !== "undefined") {
     clockFormats: clockFormats,
     clockFormatRing: clockFormatRing,
     nextClockFormat: nextClockFormat,
-    isoWeekLiteral: isoWeekLiteral
+    isoWeekLiteral: isoWeekLiteral,
+    pickEnv: pickEnv,
+    helperPath: helperPath
   }
 }
+
