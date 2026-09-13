@@ -25,6 +25,10 @@ FIXTURES_DIR = os.path.join(TEST_DIR, "fixtures")
 class TestFetchEvents(unittest.TestCase):
     def setUp(self):
         self.ny_tz = zoneinfo.ZoneInfo("America/New_York")
+        self.tmp_dir = tempfile.TemporaryDirectory()
+
+    def tearDown(self):
+        self.tmp_dir.cleanup()
 
     def test_recurring_and_exdate(self):
         """Verify recurring weekly event generates instances and skips EXDATE."""
@@ -40,11 +44,11 @@ class TestFetchEvents(unittest.TestCase):
             }
         ]
 
-        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as cfg:
+        with tempfile.NamedTemporaryFile("w", suffix=".json", dir=self.tmp_dir.name, delete=False) as cfg:
             json.dump(config_data, cfg)
             cfg_path = cfg.name
 
-        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as out:
+        with tempfile.NamedTemporaryFile("w", suffix=".json", dir=self.tmp_dir.name, delete=False) as out:
             out_path = out.name
 
         try:
@@ -102,11 +106,11 @@ class TestFetchEvents(unittest.TestCase):
             }
         ]
 
-        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as cfg:
+        with tempfile.NamedTemporaryFile("w", suffix=".json", dir=self.tmp_dir.name, delete=False) as cfg:
             json.dump(config_data, cfg)
             cfg_path = cfg.name
 
-        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as out:
+        with tempfile.NamedTemporaryFile("w", suffix=".json", dir=self.tmp_dir.name, delete=False) as out:
             out_path = out.name
 
         try:
@@ -157,11 +161,11 @@ class TestFetchEvents(unittest.TestCase):
             }
         ]
 
-        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as cfg:
+        with tempfile.NamedTemporaryFile("w", suffix=".json", dir=self.tmp_dir.name, delete=False) as cfg:
             json.dump(config_data, cfg)
             cfg_path = cfg.name
 
-        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as out:
+        with tempfile.NamedTemporaryFile("w", suffix=".json", dir=self.tmp_dir.name, delete=False) as out:
             out_path = out.name
 
         try:
@@ -205,11 +209,11 @@ class TestFetchEvents(unittest.TestCase):
             }
         ]
 
-        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as cfg:
+        with tempfile.NamedTemporaryFile("w", suffix=".json", dir=self.tmp_dir.name, delete=False) as cfg:
             json.dump(config_data, cfg)
             cfg_path = cfg.name
 
-        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as out:
+        with tempfile.NamedTemporaryFile("w", suffix=".json", dir=self.tmp_dir.name, delete=False) as out:
             out_path = out.name
 
         try:
@@ -274,11 +278,11 @@ class TestFetchEvents(unittest.TestCase):
             }
         ]
 
-        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as cfg:
+        with tempfile.NamedTemporaryFile("w", suffix=".json", dir=self.tmp_dir.name, delete=False) as cfg:
             json.dump(config_data, cfg)
             cfg_path = cfg.name
 
-        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as out:
+        with tempfile.NamedTemporaryFile("w", suffix=".json", dir=self.tmp_dir.name, delete=False) as out:
             out_path = out.name
 
         try:
@@ -341,11 +345,11 @@ class TestFetchEvents(unittest.TestCase):
             },
         ]
 
-        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as cfg:
+        with tempfile.NamedTemporaryFile("w", suffix=".json", dir=self.tmp_dir.name, delete=False) as cfg:
             json.dump(config_data, cfg)
             cfg_path = cfg.name
 
-        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as out:
+        with tempfile.NamedTemporaryFile("w", suffix=".json", dir=self.tmp_dir.name, delete=False) as out:
             out_path = out.name
 
         try:
