@@ -17,15 +17,148 @@ import datetime
 import json
 import os
 import re
+import resource
+import signal
+import stat
 import sys
-import tempfile
+import time
+import urllib.parse
 import urllib.request
 import zoneinfo
-from typing import Any
+from typing import Any, Iterator
 
-USER_AGENT = "fred.clock/0.1.0 (Omarchy Shell Plugin)"
+USER_AGENT = "fred.clock/1.3.0 (Omarchy Shell Plugin)"
 DEFAULT_CONFIG_PATH = os.path.expanduser("~/.config/fred.clock/calendars.json")
 DEFAULT_CACHE_PATH = os.path.expanduser("~/.cache/fred.clock/events.json")
+
+# Limits as defined in §5
+MAX_CONFIG_BYTES = 64 * 1024  # 64 KiB
+MAX_FEEDS = 32
+MAX_FEED_BYTES = 8 * 1024 * 1024  # 8 MiB
+FEED_DEADLINE_S = 20  # seconds
+MAX_LINE_BYTES = 64 * 1024  # 64 KiB
+MAX_LINES = 200_000
+MAX_VEVENTS_PER_FEED = 20_000
+MAX_EXDATES = 2_000
+MAX_INSTANCES_PER_EVENT = 1_000
+INTERVAL_MIN = 1
+INTERVAL_MAX = 366
+COUNT_MIN = 1
+COUNT_MAX = 10_000
+MAX_SUMMARY = 512
+MAX_LOCATION = 2_048
+MAX_DESCRIPTION = 4_096
+MAX_EVENTS_TOTAL = 5_000
+MAX_OUTPUT_BYTES = 4 * 1024 * 1024  # 4 MiB
+DEADLINE_S = 45
+RLIMIT_CPU_SOFT = 30
+RLIMIT_CPU_HARD = 35
+RLIMIT_AS_BYTES = 512 * 1024 * 1024  # 512 MiB
+RLIMIT_FSIZE_BYTES = 16 * 1024 * 1024  # 16 MiB
+RLIMIT_NOFILE_COUNT = 64
+
+
+def write_private_file(directory: str, name: str, data: bytes) -> None:
+    """Atomically replace <directory>/<name> using only descriptor-relative,
+    no-follow operations. Refuses a directory that is not a private,
+    self-owned directory; creates it 0700 if absent."""
+    if not name or os.path.basename(name) != name or name in (".", ".."):
+        raise ValueError(f"Target name must be a single path component, got: {name!r}")
+
+    directory = os.path.abspath(directory)
+    parent = os.path.dirname(directory)
+
+    # Validate / create parent directory (~/.cache or ~/.config)
+    if not os.path.exists(parent):
+        os.makedirs(parent, mode=0o700, exist_ok=True)
+
+    try:
+        pfd = os.open(parent, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+    except OSError as e:
+        raise PermissionError(f"Cannot open parent directory {parent}: {e}")
+
+    try:
+        pst = os.fstat(pfd)
+        if not stat.S_ISDIR(pst.st_mode):
+            raise PermissionError(f"Parent {parent} is not a directory")
+        # Refuse if group/other-writable and not sticky
+        if (pst.st_mode & 0o022) != 0 and not (pst.st_mode & stat.S_ISVTX):
+            raise PermissionError(
+                f"Parent directory {parent} is group/other writable without sticky bit (mode {oct(pst.st_mode)})"
+            )
+    finally:
+        os.close(pfd)
+
+    # Ensure target directory exists
+    try:
+        os.mkdir(directory, 0o700)
+    except FileExistsError:
+        pass
+
+    try:
+        dfd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    except OSError as e:
+        raise PermissionError(f"Cannot open directory {directory} safely (symlink or error): {e}")
+
+    tmp_name = None
+    try:
+        st = os.fstat(dfd)
+        if not stat.S_ISDIR(st.st_mode):
+            raise PermissionError(f"{directory} is not a directory")
+        if st.st_uid != os.getuid():
+            raise PermissionError(f"{directory} is not owned by current user (uid {st.st_uid} != {os.getuid()})")
+        if (st.st_mode & 0o022) != 0:
+            raise PermissionError(f"{directory} has insecure permissions (mode {oct(st.st_mode)})")
+
+        token = os.urandom(8).hex()
+        tmp_name = f".{name}.{token}.tmp"
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC
+        tfd = os.open(tmp_name, flags, 0o600, dir_fd=dfd)
+        try:
+            total_written = 0
+            while total_written < len(data):
+                n = os.write(tfd, data[total_written:])
+                if n == 0:
+                    raise OSError("Zero bytes written to temporary file")
+                total_written += n
+            os.fsync(tfd)
+        finally:
+            os.close(tfd)
+
+        os.rename(tmp_name, name, src_dir_fd=dfd, dst_dir_fd=dfd)
+        tmp_name = None
+        os.fsync(dfd)
+    except Exception:
+        if tmp_name is not None:
+            try:
+                os.unlink(tmp_name, dir_fd=dfd)
+            except OSError:
+                pass
+        raise
+    finally:
+        os.close(dfd)
+
+
+class _HttpsOnlyRedirect(urllib.request.HTTPRedirectHandler):
+    """HTTP redirect handler refusing non-HTTPS redirects and capping hops at 5."""
+
+    def redirect_request(self, req: Any, fp: Any, code: int, msg: str, headers: Any, newurl: str) -> Any:
+        parsed = urllib.parse.urlparse(newurl)
+        if parsed.scheme.lower() != "https":
+            raise ValueError(f"Insecure redirect to non-https URL: {newurl}")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+    def http_error_302(self, req: Any, fp: Any, code: int, msg: str, headers: Any) -> Any:
+        hops = getattr(req, "_redirect_hops", 0) + 1
+        if hops > 5:
+            raise ValueError("Too many redirects (max 5)")
+        req._redirect_hops = hops
+        return super().http_error_302(req, fp, code, msg, headers)
+
+    http_error_301 = http_error_302
+    http_error_303 = http_error_302
+    http_error_307 = http_error_302
+    http_error_308 = http_error_302
 
 
 def get_local_timezone() -> datetime.tzinfo:
@@ -63,10 +196,39 @@ def get_local_timezone() -> datetime.tzinfo:
     return datetime.timezone.utc
 
 
-def unfold_ics(text: str) -> list[str]:
-    """Unfold RFC 5545 folded lines (lines preceded by CRLF + space/tab)."""
-    unfolded = re.sub(r"\r?\n[ \t]", "", text)
-    return [line.strip() for line in unfolded.splitlines() if line.strip()]
+def unfold_ics(text: str) -> Iterator[str]:
+    """Yield unfolded RFC 5545 lines, capped by MAX_LINE_BYTES and MAX_LINES."""
+    current_line = ""
+    line_count = 0
+    for raw_line in text.splitlines():
+        if raw_line.startswith(" ") or raw_line.startswith("\t"):
+            addition = raw_line[1:]
+            if len((current_line + addition).encode("utf-8")) > MAX_LINE_BYTES:
+                print(
+                    f"fetch-events: warning: line exceeded MAX_LINE_BYTES ({MAX_LINE_BYTES})",
+                    file=sys.stderr,
+                )
+                continue
+            current_line += addition
+        else:
+            if current_line.strip():
+                yield current_line.strip()
+                line_count += 1
+                if line_count >= MAX_LINES:
+                    print(
+                        f"fetch-events: warning: feed reached MAX_LINES ({MAX_LINES})",
+                        file=sys.stderr,
+                    )
+                    return
+            current_line = raw_line
+            if len(current_line.encode("utf-8")) > MAX_LINE_BYTES:
+                print(
+                    f"fetch-events: warning: line exceeded MAX_LINE_BYTES ({MAX_LINE_BYTES})",
+                    file=sys.stderr,
+                )
+                current_line = current_line.encode("utf-8")[:MAX_LINE_BYTES].decode("utf-8", errors="ignore")
+    if current_line.strip():
+        yield current_line.strip()
 
 
 def parse_prop_line(line: str) -> tuple[str, dict[str, str], str]:
@@ -95,12 +257,10 @@ def parse_datetime(
     is_all_day = params.get("VALUE") == "DATE" or len(val) == 8
 
     if is_all_day:
-        # Format: YYYYMMDD
         dt = datetime.datetime.strptime(val[:8], "%Y%m%d")
         dt = dt.replace(tzinfo=local_tz)
         return dt, True
 
-    # Date-time with possible timezone
     tzid = params.get("TZID")
     tz = local_tz
     if tzid:
@@ -109,13 +269,11 @@ def parse_datetime(
         except Exception:
             tz = local_tz
 
-    # Remove any stray characters after seconds
     if val.endswith("Z"):
         clean_val = val[:-1]
         dt = datetime.datetime.strptime(clean_val, "%Y%m%dT%H%M%S")
         dt = dt.replace(tzinfo=datetime.timezone.utc)
     else:
-        # May be %Y%m%dT%H%M%S
         dt = datetime.datetime.strptime(val[:15], "%Y%m%dT%H%M%S")
         dt = dt.replace(tzinfo=tz)
 
@@ -143,7 +301,7 @@ def parse_duration(val: str) -> datetime.timedelta:
 
 
 def parse_rrule(rrule_str: str) -> dict[str, Any]:
-    """Parse RRULE string into key-value map."""
+    """Parse RRULE string into key-value map with clamped parameters."""
     out: dict[str, Any] = {}
     for part in rrule_str.split(";"):
         if "=" in part:
@@ -151,10 +309,17 @@ def parse_rrule(rrule_str: str) -> dict[str, Any]:
             k = k.upper()
             if k == "BYDAY":
                 out[k] = [d.strip().upper() for d in v.split(",")]
-            elif k in ("INTERVAL", "COUNT"):
+            elif k == "INTERVAL":
                 try:
-                    out[k] = int(v)
-                except ValueError:
+                    val_int = int(v)
+                    out[k] = max(INTERVAL_MIN, min(val_int, INTERVAL_MAX))
+                except (ValueError, TypeError):
+                    out[k] = 1
+            elif k == "COUNT":
+                try:
+                    val_int = int(v)
+                    out[k] = max(COUNT_MIN, min(val_int, COUNT_MAX))
+                except (ValueError, TypeError):
                     pass
             else:
                 out[k] = v
@@ -180,6 +345,7 @@ def expand_event(
 ) -> list[dict[str, Any]]:
     """
     Expand a single VEVENT (including recurrence rules) within the time window.
+    Guarded by MAX_INSTANCES_PER_EVENT iterations.
     """
     start_dt: datetime.datetime = event_data["start_dt"]
     is_all_day: bool = event_data["all_day"]
@@ -190,14 +356,25 @@ def expand_event(
     instances: list[datetime.datetime] = []
 
     if not rrule:
-        # Non-recurring event
         inst_end = start_dt + duration
         if inst_end >= window_start and start_dt <= window_end:
             instances.append(start_dt)
     else:
         freq = rrule.get("FREQ")
-        interval = max(1, int(rrule.get("INTERVAL", 1)))
-        count = rrule.get("COUNT")
+        try:
+            raw_interval = int(rrule.get("INTERVAL", 1))
+        except (ValueError, TypeError):
+            raw_interval = 1
+        interval = max(INTERVAL_MIN, min(raw_interval, INTERVAL_MAX))
+
+        count = None
+        if "COUNT" in rrule:
+            try:
+                raw_count = int(rrule["COUNT"])
+                count = max(COUNT_MIN, min(raw_count, COUNT_MAX))
+            except (ValueError, TypeError):
+                count = None
+
         until_str = rrule.get("UNTIL")
         until_dt: datetime.datetime | None = None
         if until_str:
@@ -211,9 +388,11 @@ def expand_event(
 
         curr = start_dt
         generated = 0
+        iteration_count = 0
 
         if freq == "DAILY":
-            while curr <= window_end:
+            while curr <= window_end and iteration_count < MAX_INSTANCES_PER_EVENT:
+                iteration_count += 1
                 if until_dt and curr > until_dt:
                     break
                 if count is not None and generated >= count:
@@ -224,16 +403,23 @@ def expand_event(
                 curr += datetime.timedelta(days=interval)
 
         elif freq == "WEEKLY":
-            # Determine target days of week
-            target_days = [day_map[d[-2:]] for d in byday if d[-2:] in day_map] if byday else [start_dt.weekday()]
+            target_days = (
+                [day_map[d[-2:]] for d in byday if d[-2:] in day_map]
+                if byday
+                else [start_dt.weekday()]
+            )
             target_days.sort()
 
-            # Start at the beginning of the start week (Monday)
             curr_week_start = (start_dt - datetime.timedelta(days=start_dt.weekday())).date()
-            while True:
+            while curr_week_start <= window_end.date() and iteration_count < MAX_INSTANCES_PER_EVENT:
                 for day_idx in target_days:
+                    iteration_count += 1
+                    if iteration_count > MAX_INSTANCES_PER_EVENT:
+                        break
                     inst_date = curr_week_start + datetime.timedelta(days=day_idx)
-                    inst_dt = datetime.datetime.combine(inst_date, start_dt.time(), tzinfo=start_dt.tzinfo)
+                    inst_dt = datetime.datetime.combine(
+                        inst_date, start_dt.time(), tzinfo=start_dt.tzinfo
+                    )
 
                     if inst_dt < start_dt:
                         continue
@@ -247,14 +433,17 @@ def expand_event(
                     if inst_dt + duration >= window_start:
                         instances.append(inst_dt)
 
-                if (count is not None and generated >= count) or (until_dt and inst_dt > until_dt):
+                if (
+                    (count is not None and generated >= count)
+                    or (until_dt and inst_dt > until_dt)
+                    or iteration_count >= MAX_INSTANCES_PER_EVENT
+                ):
                     break
                 curr_week_start += datetime.timedelta(weeks=interval)
-                if datetime.datetime.combine(curr_week_start, start_dt.time(), tzinfo=start_dt.tzinfo) > window_end:
-                    break
 
         elif freq == "MONTHLY":
-            while curr <= window_end:
+            while curr <= window_end and iteration_count < MAX_INSTANCES_PER_EVENT:
+                iteration_count += 1
                 if until_dt and curr > until_dt:
                     break
                 if count is not None and generated >= count:
@@ -262,14 +451,14 @@ def expand_event(
                 generated += 1
                 if curr + duration >= window_start:
                     instances.append(curr)
-                # Next month step
                 year = curr.year + (curr.month - 1 + interval) // 12
                 month = (curr.month - 1 + interval) % 12 + 1
-                day = min(curr.day, 28)  # Safe day clamp
+                day = min(curr.day, 28)
                 curr = curr.replace(year=year, month=month, day=day)
 
         elif freq == "YEARLY":
-            while curr <= window_end:
+            while curr <= window_end and iteration_count < MAX_INSTANCES_PER_EVENT:
+                iteration_count += 1
                 if until_dt and curr > until_dt:
                     break
                 if count is not None and generated >= count:
@@ -277,45 +466,59 @@ def expand_event(
                 generated += 1
                 if curr + duration >= window_start:
                     instances.append(curr)
-                curr = curr.replace(year=curr.year + interval)
+                try:
+                    curr = curr.replace(year=curr.year + interval)
+                except ValueError:
+                    break
 
     expanded: list[dict[str, Any]] = []
     for inst_start in instances:
-        # Check EXDATE
         if inst_start in exdates or inst_start.date() in exdates:
             continue
         inst_end = inst_start + duration
 
-        # Convert to local time for clean display / timestamp calculations
         local_start = inst_start.astimezone(local_tz)
         local_end = inst_end.astimezone(local_tz)
 
         desc = event_data.get("description", "")
         loc = event_data.get("location", "")
         meeting_url = ""
-        url_match = re.search(r"https?://(?:meet\.google\.com|[\w-]+\.zoom\.us|teams\.microsoft\.com|[\w-]+\.webex\.com)/[^\s<>'\"`]+", loc + " " + desc)
+        url_match = re.search(
+            r"https?://(?:meet\.google\.com|[\w-]+\.zoom\.us|teams\.microsoft\.com|[\w-]+\.webex\.com)/[^\s<>'\"`]+",
+            loc + " " + desc,
+        )
         if url_match:
             meeting_url = url_match.group(0)
         elif loc.startswith("http://") or loc.startswith("https://"):
             meeting_url = loc
 
-        end_date_for_key = (local_end - datetime.timedelta(seconds=1)) if is_all_day and local_end > local_start else local_end
+        end_date_for_key = (
+            (local_end - datetime.timedelta(seconds=1))
+            if is_all_day and local_end > local_start
+            else local_end
+        )
 
-        expanded.append({
-            "id": event_data["id"],
-            "summary": event_data["summary"],
-            "start": local_start.isoformat(),
-            "end": local_end.isoformat(),
-            "dateKey": local_start.strftime("%Y-%m-%d"),
-            "endDateKey": end_date_for_key.strftime("%Y-%m-%d"),
-            "timeStr": "All Day" if is_all_day else f"{local_start.strftime('%H:%M')} – {local_end.strftime('%H:%M')}",
-            "startTs": int(local_start.timestamp()),
-            "endTs": int(local_end.timestamp()),
-            "allDay": is_all_day,
-            "location": loc,
-            "description": desc,
-            "meetingUrl": meeting_url,
-        })
+        expanded.append(
+            {
+                "id": event_data["id"],
+                "summary": event_data["summary"],
+                "start": local_start.isoformat(),
+                "end": local_end.isoformat(),
+                "dateKey": local_start.strftime("%Y-%m-%d"),
+                "endDateKey": end_date_for_key.strftime("%Y-%m-%d"),
+                "timeStr": (
+                    "All Day"
+                    if is_all_day
+                    else f"{local_start.strftime('%H:%M')} – {local_end.strftime('%H:%M')}"
+                ),
+                "startTs": int(local_start.timestamp()),
+                "endTs": int(local_end.timestamp()),
+                "allDay": is_all_day,
+                "location": loc,
+                "description": desc,
+                "meetingUrl": meeting_url,
+            }
+        )
 
     return expanded
 
@@ -327,14 +530,21 @@ def parse_ics_content(
     local_tz: datetime.tzinfo,
 ) -> list[dict[str, Any]]:
     """Parse raw iCalendar text and return list of expanded events in the window."""
-    lines = unfold_ics(content)
     events: list[dict[str, Any]] = []
 
     in_vevent = False
     current_event: dict[str, Any] = {}
+    vevent_count = 0
 
-    for line in lines:
+    for line in unfold_ics(content):
         if line == "BEGIN:VEVENT":
+            vevent_count += 1
+            if vevent_count > MAX_VEVENTS_PER_FEED:
+                print(
+                    f"fetch-events: warning: feed reached MAX_VEVENTS_PER_FEED ({MAX_VEVENTS_PER_FEED})",
+                    file=sys.stderr,
+                )
+                break
             in_vevent = True
             current_event = {"exdates": set()}
             continue
@@ -357,15 +567,15 @@ def parse_ics_content(
         prop, params, val = parse_prop_line(line)
 
         if prop == "UID":
-            current_event["id"] = val
+            current_event["id"] = val[:255]
         elif prop == "SUMMARY":
-            current_event["summary"] = unescape_text(val)
+            current_event["summary"] = unescape_text(val[:MAX_SUMMARY])
         elif prop == "STATUS":
             current_event["status"] = val.upper()
         elif prop == "LOCATION":
-            current_event["location"] = unescape_text(val)
+            current_event["location"] = unescape_text(val[:MAX_LOCATION])
         elif prop == "DESCRIPTION":
-            current_event["description"] = unescape_text(val)
+            current_event["description"] = unescape_text(val[:MAX_DESCRIPTION])
         elif prop == "DTSTART":
             try:
                 dt, is_all_day = parse_datetime(val, params, local_tz)
@@ -386,8 +596,9 @@ def parse_ics_content(
         elif prop == "RRULE":
             current_event["rrule"] = parse_rrule(val)
         elif prop == "EXDATE":
-            # May contain comma-separated datetimes
             for part in val.split(","):
+                if len(current_event["exdates"]) >= MAX_EXDATES:
+                    break
                 try:
                     dt, is_date = parse_datetime(part.strip(), params, local_tz)
                     if is_date:
@@ -400,28 +611,114 @@ def parse_ics_content(
     return events
 
 
-def fetch_feed(feed_info: dict[str, Any], window_start: datetime.datetime, window_end: datetime.datetime, local_tz: datetime.tzinfo) -> list[dict[str, Any]]:
-    """Fetch and parse one calendar feed (remote URL or local path)."""
+def fetch_feed(
+    feed_info: dict[str, Any],
+    window_start: datetime.datetime,
+    window_end: datetime.datetime,
+    local_tz: datetime.tzinfo,
+) -> list[dict[str, Any]]:
+    """Fetch and parse one calendar feed (remote HTTPS URL or local path)."""
     if not feed_info.get("enabled", True):
         return []
 
-    account = feed_info.get("account", "Personal")
-    cal_name = feed_info.get("name", "Calendar")
-    color = feed_info.get("color", "#4285f4")
+    account = str(feed_info.get("account", "Personal"))[:128]
+    cal_name = str(feed_info.get("name", "Calendar"))[:128]
+    color = str(feed_info.get("color", "#4285f4"))
+    if not re.match(r"^#[0-9a-fA-F]{6}$", color):
+        color = "#4285f4"
+
     url = feed_info.get("url")
     path = feed_info.get("path")
 
     content = ""
     try:
         if url:
-            req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-            with urllib.request.urlopen(req, timeout=10) as response:
-                content = response.read().decode("utf-8", errors="replace")
+            raw_url = str(url)
+            if raw_url.startswith("webcal://"):
+                raw_url = "https://" + raw_url[len("webcal://"):]
+            parsed_u = urllib.parse.urlparse(raw_url)
+            if parsed_u.scheme.lower() != "https":
+                print(f"fetch-events: refusing non-HTTPS feed URL: {raw_url}", file=sys.stderr)
+                return []
+
+            opener = urllib.request.build_opener(_HttpsOnlyRedirect())
+            req = urllib.request.Request(raw_url, headers={"User-Agent": USER_AGENT})
+            with opener.open(req, timeout=10) as response:
+                content_length = response.headers.get("Content-Length")
+                if content_length:
+                    try:
+                        if int(content_length) > MAX_FEED_BYTES:
+                            print(
+                                f"fetch-events: feed '{cal_name}' Content-Length ({content_length}) exceeds MAX_FEED_BYTES ({MAX_FEED_BYTES})",
+                                file=sys.stderr,
+                            )
+                            return []
+                    except ValueError:
+                        pass
+
+                start_time = time.monotonic()
+                chunks = []
+                total_bytes = 0
+                while True:
+                    if time.monotonic() - start_time > FEED_DEADLINE_S:
+                        print(
+                            f"fetch-events: feed '{cal_name}' exceeded FEED_DEADLINE_S ({FEED_DEADLINE_S}s)",
+                            file=sys.stderr,
+                        )
+                        return []
+                    chunk = response.read(65536)
+                    if not chunk:
+                        break
+                    total_bytes += len(chunk)
+                    if total_bytes > MAX_FEED_BYTES:
+                        print(
+                            f"fetch-events: feed '{cal_name}' exceeded MAX_FEED_BYTES ({MAX_FEED_BYTES})",
+                            file=sys.stderr,
+                        )
+                        return []
+                    chunks.append(chunk)
+
+                content = b"".join(chunks).decode("utf-8", errors="replace")
+
         elif path:
-            expanded_path = os.path.expanduser(path)
+            expanded_path = os.path.expanduser(str(path))
             if os.path.exists(expanded_path):
-                with open(expanded_path, "r", encoding="utf-8", errors="replace") as f:
-                    content = f.read()
+                with open(expanded_path, "rb") as f:
+                    st = os.fstat(f.fileno())
+                    if not stat.S_ISREG(st.st_mode):
+                        print(
+                            f"fetch-events: local feed '{cal_name}' is not a regular file",
+                            file=sys.stderr,
+                        )
+                        return []
+                    if st.st_uid != os.getuid():
+                        print(
+                            f"fetch-events: local feed '{cal_name}' is not owned by current user",
+                            file=sys.stderr,
+                        )
+                        return []
+                    if st.st_size > MAX_FEED_BYTES:
+                        print(
+                            f"fetch-events: local feed '{cal_name}' size ({st.st_size}) exceeds MAX_FEED_BYTES ({MAX_FEED_BYTES})",
+                            file=sys.stderr,
+                        )
+                        return []
+
+                    chunks = []
+                    total_bytes = 0
+                    while True:
+                        chunk = f.read(65536)
+                        if not chunk:
+                            break
+                        total_bytes += len(chunk)
+                        if total_bytes > MAX_FEED_BYTES:
+                            print(
+                                f"fetch-events: local feed '{cal_name}' exceeded MAX_FEED_BYTES ({MAX_FEED_BYTES})",
+                                file=sys.stderr,
+                            )
+                            return []
+                        chunks.append(chunk)
+                    content = b"".join(chunks).decode("utf-8", errors="replace")
     except Exception as e:
         print(f"fetch-events: failed to fetch feed '{cal_name}': {e}", file=sys.stderr)
         return []
@@ -437,14 +734,16 @@ def fetch_feed(feed_info: dict[str, Any], window_start: datetime.datetime, windo
             ev["color"] = color
             ev["isLocal"] = bool(path)
             if path:
-                ev["localPath"] = os.path.expanduser(path)
+                ev["localPath"] = os.path.expanduser(str(path))
         return raw_events
     except Exception as e:
         print(f"fetch-events: error parsing feed '{cal_name}': {e}", file=sys.stderr)
         return []
 
 
-def compute_next_event(events: list[dict[str, Any]], now_ts: int, badge_minutes: int = 60) -> dict[str, Any] | None:
+def compute_next_event(
+    events: list[dict[str, Any]], now_ts: int, badge_minutes: int = 60
+) -> dict[str, Any] | None:
     """Find the next upcoming or in-progress event for the countdown badge."""
     upcoming = []
     for ev in events:
@@ -452,10 +751,8 @@ def compute_next_event(events: list[dict[str, Any]], now_ts: int, badge_minutes:
             continue
         start_ts = ev["startTs"]
         end_ts = ev["endTs"]
-        # In-progress event
         if start_ts <= now_ts < end_ts:
             upcoming.append((start_ts, ev, 0, True))
-        # Future event starting within badge window
         elif start_ts > now_ts:
             diff_min = int((start_ts - now_ts) / 60)
             if badge_minutes <= 0 or diff_min <= badge_minutes:
@@ -464,7 +761,6 @@ def compute_next_event(events: list[dict[str, Any]], now_ts: int, badge_minutes:
     if not upcoming:
         return None
 
-    # Sort by start time
     upcoming.sort(key=lambda x: x[0])
     _, next_ev, diff_min, in_progress = upcoming[0]
 
@@ -497,30 +793,116 @@ def main() -> int:
     parser.add_argument("--badge-minutes", type=int, default=60, help="Max minutes ahead for countdown badge")
     parser.add_argument("--print", action="store_true", help="Print payload to stdout instead of writing file")
     parser.add_argument("--now", type=int, default=None, help="Override current epoch timestamp for testing")
+    parser.add_argument("--deadline", type=int, default=DEADLINE_S, help="Self-imposed alarm deadline in seconds")
+    parser.add_argument("--no-rlimits", action="store_true", help="Disable resource rlimits")
 
     args = parser.parse_args()
 
+    # Self-supervision at the top of main()
+    if not args.no_rlimits:
+        rlimits_to_set = [
+            ("RLIMIT_CPU", resource.RLIMIT_CPU, (RLIMIT_CPU_SOFT, RLIMIT_CPU_HARD)),
+            ("RLIMIT_AS", resource.RLIMIT_AS, (RLIMIT_AS_BYTES, RLIMIT_AS_BYTES)),
+            ("RLIMIT_FSIZE", resource.RLIMIT_FSIZE, (RLIMIT_FSIZE_BYTES, RLIMIT_FSIZE_BYTES)),
+            ("RLIMIT_NOFILE", resource.RLIMIT_NOFILE, (RLIMIT_NOFILE_COUNT, RLIMIT_NOFILE_COUNT)),
+        ]
+        for name, res_type, limits in rlimits_to_set:
+            try:
+                resource.setrlimit(res_type, limits)
+            except Exception as e:
+                print(f"fetch-events: warning: failed to set {name}: {e}", file=sys.stderr)
+
+    if args.deadline and args.deadline > 0:
+        try:
+            signal.alarm(args.deadline)
+        except Exception as e:
+            print(f"fetch-events: warning: failed to set alarm: {e}", file=sys.stderr)
+
     local_tz = get_local_timezone()
-    now_ts = args.now if args.now is not None else int(datetime.datetime.now(datetime.timezone.utc).timestamp())
+    now_ts = (
+        args.now
+        if args.now is not None
+        else int(datetime.datetime.now(datetime.timezone.utc).timestamp())
+    )
     now_dt = datetime.datetime.fromtimestamp(now_ts, tz=local_tz)
 
     # Window: past 1 day to next 30 days
     window_start = now_dt - datetime.timedelta(days=1)
     window_end = now_dt + datetime.timedelta(days=30)
 
-    # Load configuration
+    # Load configuration with bounds
     feeds: list[dict[str, Any]] = []
     if os.path.exists(args.config):
         try:
-            with open(args.config, "r", encoding="utf-8") as f:
-                feeds = json.load(f)
+            with open(args.config, "rb") as f:
+                st = os.fstat(f.fileno())
+                if not stat.S_ISREG(st.st_mode):
+                    print(f"fetch-events: config {args.config} is not a regular file", file=sys.stderr)
+                elif st.st_uid != os.getuid():
+                    print(f"fetch-events: config {args.config} is not owned by current user", file=sys.stderr)
+                elif st.st_size > MAX_CONFIG_BYTES:
+                    print(
+                        f"fetch-events: config {args.config} size ({st.st_size}) exceeds MAX_CONFIG_BYTES ({MAX_CONFIG_BYTES})",
+                        file=sys.stderr,
+                    )
+                else:
+                    raw_cfg = f.read(MAX_CONFIG_BYTES + 1)
+                    if len(raw_cfg) > MAX_CONFIG_BYTES:
+                        print(
+                            f"fetch-events: config exceeds MAX_CONFIG_BYTES ({MAX_CONFIG_BYTES})",
+                            file=sys.stderr,
+                        )
+                    else:
+                        loaded = json.loads(raw_cfg.decode("utf-8", errors="replace"))
+                        if not isinstance(loaded, list):
+                            print("fetch-events: config must be a JSON list", file=sys.stderr)
+                        else:
+                            if len(loaded) > MAX_FEEDS:
+                                print(
+                                    f"fetch-events: config feeds ({len(loaded)}) exceeds MAX_FEEDS ({MAX_FEEDS}), truncating",
+                                    file=sys.stderr,
+                                )
+                                loaded = loaded[:MAX_FEEDS]
+                            for raw_feed in loaded:
+                                if not isinstance(raw_feed, dict):
+                                    continue
+                                validated_feed = {
+                                    "enabled": bool(raw_feed.get("enabled", True)),
+                                    "account": str(raw_feed.get("account", "Personal"))[:128],
+                                    "name": str(raw_feed.get("name", "Calendar"))[:128],
+                                }
+                                color = str(raw_feed.get("color", "#4285f4"))
+                                if not re.match(r"^#[0-9a-fA-F]{6}$", color):
+                                    color = "#4285f4"
+                                validated_feed["color"] = color
+
+                                if "url" in raw_feed:
+                                    raw_url = str(raw_feed["url"])
+                                    if raw_url.startswith("webcal://"):
+                                        raw_url = "https://" + raw_url[len("webcal://"):]
+                                    parsed_u = urllib.parse.urlparse(raw_url)
+                                    if parsed_u.scheme.lower() != "https":
+                                        print(
+                                            f"fetch-events: refusing non-HTTPS feed URL: {raw_url}",
+                                            file=sys.stderr,
+                                        )
+                                        continue
+                                    validated_feed["url"] = raw_url
+
+                                if "path" in raw_feed:
+                                    validated_feed["path"] = str(raw_feed["path"])
+
+                                feeds.append(validated_feed)
         except Exception as e:
             print(f"fetch-events: failed to read config {args.config}: {e}", file=sys.stderr)
 
     all_events: list[dict[str, Any]] = []
     if feeds:
         with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(feeds), 8)) as executor:
-            futures = [executor.submit(fetch_feed, feed, window_start, window_end, local_tz) for feed in feeds]
+            futures = [
+                executor.submit(fetch_feed, feed, window_start, window_end, local_tz)
+                for feed in feeds
+            ]
             for future in concurrent.futures.as_completed(futures):
                 try:
                     feed_events = future.result()
@@ -530,6 +912,12 @@ def main() -> int:
 
     # Sort events chronologically
     all_events.sort(key=lambda x: (x["startTs"], x.get("summary", "")))
+    if len(all_events) > MAX_EVENTS_TOTAL:
+        print(
+            f"fetch-events: total events ({len(all_events)}) exceeds MAX_EVENTS_TOTAL ({MAX_EVENTS_TOTAL}), truncating",
+            file=sys.stderr,
+        )
+        all_events = all_events[:MAX_EVENTS_TOTAL]
 
     next_event = compute_next_event(all_events, now_ts, badge_minutes=args.badge_minutes)
 
@@ -539,24 +927,31 @@ def main() -> int:
         "nextEvent": next_event,
     }
 
+    payload_bytes = json.dumps(payload, indent=2).encode("utf-8")
+    if len(payload_bytes) > MAX_OUTPUT_BYTES:
+        for ev in all_events:
+            ev["description"] = ""
+        payload["events"] = all_events
+        payload_bytes = json.dumps(payload, indent=2).encode("utf-8")
+
+    if len(payload_bytes) > MAX_OUTPUT_BYTES:
+        while all_events and len(payload_bytes) > MAX_OUTPUT_BYTES:
+            all_events.pop()
+            payload["events"] = all_events
+            payload_bytes = json.dumps(payload, indent=2).encode("utf-8")
+
     if args.print:
-        print(json.dumps(payload, indent=2))
+        sys.stdout.buffer.write(payload_bytes)
+        sys.stdout.buffer.write(b"\n")
         return 0
 
-    # Write cache atomically with 0600 permissions
-    out_dir = os.path.dirname(args.output)
-    if out_dir:
-        os.makedirs(out_dir, mode=0o700, exist_ok=True)
+    abs_output = os.path.abspath(os.path.expanduser(args.output))
+    out_dir = os.path.dirname(abs_output)
+    out_name = os.path.basename(abs_output)
 
-    tmp_fd, tmp_path = tempfile.mkstemp(prefix="events-", suffix=".json.tmp", dir=out_dir)
     try:
-        os.fchmod(tmp_fd, 0o600)
-        with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
-            json.dump(payload, f, indent=2)
-        os.replace(tmp_path, args.output)
+        write_private_file(out_dir, out_name, payload_bytes)
     except Exception as e:
-        if os.path.exists(tmp_path):
-            os.unlink(tmp_path)
         print(f"fetch-events: error saving cache to {args.output}: {e}", file=sys.stderr)
         return 1
 
