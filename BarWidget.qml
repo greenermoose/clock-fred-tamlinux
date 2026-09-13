@@ -61,6 +61,14 @@ BarWidget {
   }
 
   FileView {
+    id: localIcsWatcher
+    path: Quickshell.env("HOME") + "/.config/fred.clock/local.ics"
+    watchChanges: true
+    printErrors: false
+    onFileChanged: root.runFetch()
+  }
+
+  FileView {
     id: eventsCache
     path: Quickshell.env("HOME") + "/.cache/fred.clock/events.json"
     watchChanges: true
@@ -270,6 +278,43 @@ BarWidget {
       if (panelLoader.item && panelLoader.item.copyDayMarkdown) {
         panelLoader.item.copyDayMarkdown()
       }
+    }
+    function openAddEvent(): void {
+      root.open()
+      if (panelLoader.item && panelLoader.item.openAddEvent) {
+        panelLoader.item.openAddEvent()
+      }
+    }
+    function closeAddEvent(): void {
+      if (panelLoader.item && panelLoader.item.closeAddEvent) {
+        panelLoader.item.closeAddEvent()
+      }
+    }
+    function filterAccount(account: string): void {
+      if (panelLoader.item) {
+        panelLoader.item.selectedAccount = account
+      }
+    }
+    function createEvent(summary: string, date: string, allDay: string, startTime: string, endTime: string, location: string): void {
+      var isAllDay = (allDay === "true" || allDay === "1" || allDay === "yes")
+      var script = Quickshell.env("HOME") + "/.config/omarchy/plugins/fred.clock/manage-event.py"
+      var args = ["python3", script, "add", "--date", date, "--summary", summary]
+      if (isAllDay) {
+        args.push("--all-day")
+      } else {
+        args.push("--start-time", startTime || "09:00")
+        args.push("--end-time", endTime || "10:00")
+      }
+      if (location && location.trim() !== "") {
+        args.push("--location", location.trim())
+      }
+      Quickshell.execDetached(args)
+      Quickshell.execDetached(["omarchy-notification-send", "Event Added", summary + " (" + date + ")"])
+    }
+    function deleteEvent(uid: string): void {
+      var script = Quickshell.env("HOME") + "/.config/omarchy/plugins/fred.clock/manage-event.py"
+      Quickshell.execDetached(["python3", script, "delete", "--uid", uid])
+      Quickshell.execDetached(["omarchy-notification-send", "Event Deleted", "Local event removed"])
     }
   }
 

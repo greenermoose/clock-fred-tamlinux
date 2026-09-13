@@ -271,6 +271,57 @@ Panel {
     Quickshell.execDetached(["omarchy-notification-send", "Agenda Copied", dateTitle + " agenda copied to clipboard"])
   }
 
+  property bool addEventOpen: false
+  readonly property string manageScript: Quickshell.env("HOME") + "/.config/omarchy/plugins/fred.clock/manage-event.py"
+
+  function toggleAddEvent() {
+    root.addEventOpen = !root.addEventOpen
+  }
+
+  function openAddEvent() {
+    root.addEventOpen = true
+  }
+
+  function closeAddEvent() {
+    root.addEventOpen = false
+  }
+
+  function submitNewEvent(title, allDay, startTime, endTime, location, targetDate) {
+    if (!title || !title.trim()) return
+    var finalDate = targetDate || root.selectedDateKey || root.todayKey
+    var args = [
+      "python3",
+      root.manageScript,
+      "add",
+      "--date", finalDate,
+      "--summary", title.trim()
+    ]
+    if (allDay === true || allDay === "true") {
+      args.push("--all-day")
+    } else {
+      args.push("--start-time", startTime || "09:00")
+      args.push("--end-time", endTime || "10:00")
+    }
+    if (location && location.trim()) {
+      args.push("--location", location.trim())
+    }
+    Quickshell.execDetached(args)
+    Quickshell.execDetached(["omarchy-notification-send", "Event Added", title.trim() + " (" + finalDate + ")"])
+    root.closeAddEvent()
+  }
+
+  function deleteLocalEvent(eventUid) {
+    if (!eventUid) return
+    var args = [
+      "python3",
+      root.manageScript,
+      "delete",
+      "--uid", eventUid
+    ]
+    Quickshell.execDetached(args)
+    Quickshell.execDetached(["omarchy-notification-send", "Event Deleted", "Local event removed"])
+  }
+
   function refresh() {
     root.today = new Date()
     root.goToToday()
@@ -409,7 +460,13 @@ Panel {
         if (dy !== 0) root.moveYear(dy)
       }
       onActivateRequested: root.goToToday()
-      onCloseRequested: root.close()
+      onCloseRequested: {
+        if (root.addEventOpen) {
+          root.closeAddEvent()
+        } else {
+          root.close()
+        }
+      }
       onTabRequested: function(direction) { root.switchPanel(direction) }
       onTextKey: function(t) {
         if (t === "[") root.moveMonth(-1)
@@ -419,6 +476,7 @@ Panel {
         else if (t === "t" || t === "T") root.goToToday()
         else if (t === "w" || t === "W") root.toggleWeekStart()
         else if (t === "y" || t === "Y") root.copyDayMarkdown()
+        else if (t === "n" || t === "N" || t === "a" || t === "A") root.openAddEvent()
       }
 
       Flickable {
@@ -1008,15 +1066,28 @@ Panel {
                   }
                 }
 
-                PanelActionButton {
-                  id: agendaCopyBtn
+                Row {
                   anchors.right: parent.right
                   anchors.verticalCenter: parent.verticalCenter
-                  iconText: "󰆏"
-                  tooltipText: "Copy agenda as Markdown (y)"
-                  foreground: root.contentForeground
-                  fontFamily: root.contentFontFamily
-                  onClicked: root.copyDayMarkdown()
+                  spacing: Style.space(4)
+
+                  PanelActionButton {
+                    id: agendaAddBtn
+                    iconText: "󰐕"
+                    tooltipText: "Add local event (n)"
+                    foreground: root.contentForeground
+                    fontFamily: root.contentFontFamily
+                    onClicked: root.toggleAddEvent()
+                  }
+
+                  PanelActionButton {
+                    id: agendaCopyBtn
+                    iconText: "󰆏"
+                    tooltipText: "Copy agenda as Markdown (y)"
+                    foreground: root.contentForeground
+                    fontFamily: root.contentFontFamily
+                    onClicked: root.copyDayMarkdown()
+                  }
                 }
               }
 
@@ -1068,6 +1139,203 @@ Panel {
                         cursorShape: Qt.PointingHandCursor
                         onClicked: root.selectedAccount = modelData
                       }
+                    }
+                  }
+                }
+              }
+
+              // Inline Add Event Form
+              Rectangle {
+                id: addEventCard
+                visible: root.addEventOpen
+                width: parent.width
+                implicitHeight: addEventCol.implicitHeight + Style.space(16)
+                radius: Style.cornerRadius
+                color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.05)
+                border.width: Style.spacing.hairline
+                border.color: Style.selectedStateColor(root.contentForeground, Color.accent)
+
+                Column {
+                  id: addEventCol
+                  width: parent.width - Style.space(20)
+                  anchors.centerIn: parent
+                  spacing: Style.space(8)
+
+                  Item {
+                    width: parent.width
+                    height: cancelAddBtn.height
+
+                    Text {
+                      anchors.left: parent.left
+                      anchors.verticalCenter: parent.verticalCenter
+                      text: "NEW LOCAL EVENT"
+                      color: Style.selectedStateColor(root.contentForeground, Color.accent)
+                      font.family: root.contentFontFamily
+                      font.pixelSize: Style.font.caption
+                      font.bold: true
+                      font.letterSpacing: 1
+                    }
+
+                    PanelActionButton {
+                      id: cancelAddBtn
+                      anchors.right: parent.right
+                      anchors.verticalCenter: parent.verticalCenter
+                      iconText: "✕"
+                      tooltipText: "Cancel (Esc)"
+                      foreground: root.contentForeground
+                      fontFamily: root.contentFontFamily
+                      onClicked: root.closeAddEvent()
+                    }
+                  }
+
+                  TextField {
+                    id: newEventTitle
+                    width: parent.width
+                    placeholderText: "Event title"
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.bodySmall
+                    focus: root.addEventOpen
+                    onAccepted: root.submitNewEvent(
+                      newEventTitle.text,
+                      allDayBoxMouse.allDay,
+                      newStartTime.text,
+                      newEndTime.text,
+                      newEventLocation.text
+                    )
+                  }
+
+                  Row {
+                    spacing: Style.space(12)
+
+                    Row {
+                      spacing: Style.space(6)
+                      anchors.verticalCenter: parent.verticalCenter
+
+                      Rectangle {
+                        width: Style.space(16)
+                        height: Style.space(16)
+                        radius: Style.cornerRadius > 0 ? 3 : 0
+                        color: allDayBoxMouse.allDay
+                          ? Style.selectedStateColor(root.contentForeground, Color.accent)
+                          : "transparent"
+                        border.width: Style.spacing.hairline
+                        border.color: allDayBoxMouse.allDay
+                          ? Style.selectedStateColor(root.contentForeground, Color.accent)
+                          : Qt.darker(root.contentForeground, 1.8)
+
+                        Text {
+                          visible: allDayBoxMouse.allDay
+                          anchors.centerIn: parent
+                          text: "✓"
+                          color: Color.background
+                          font.pixelSize: Style.font.caption - 1
+                          font.bold: true
+                        }
+
+                        MouseArea {
+                          id: allDayBoxMouse
+                          property bool allDay: true
+                          anchors.fill: parent
+                          cursorShape: Qt.PointingHandCursor
+                          onClicked: allDay = !allDay
+                        }
+                      }
+
+                      Text {
+                        text: "All Day"
+                        color: root.contentForeground
+                        font.family: root.contentFontFamily
+                        font.pixelSize: Style.font.caption
+                        anchors.verticalCenter: parent.verticalCenter
+
+                        MouseArea {
+                          anchors.fill: parent
+                          cursorShape: Qt.PointingHandCursor
+                          onClicked: allDayBoxMouse.allDay = !allDayBoxMouse.allDay
+                        }
+                      }
+                    }
+
+                    Row {
+                      visible: !allDayBoxMouse.allDay
+                      spacing: Style.space(4)
+                      anchors.verticalCenter: parent.verticalCenter
+
+                      TextField {
+                        id: newStartTime
+                        width: Style.space(56)
+                        text: "09:00"
+                        font.family: root.contentFontFamily
+                        font.pixelSize: Style.font.caption
+                        horizontalAlignment: TextInput.AlignHCenter
+                        onAccepted: root.submitNewEvent(
+                          newEventTitle.text,
+                          allDayBoxMouse.allDay,
+                          newStartTime.text,
+                          newEndTime.text,
+                          newEventLocation.text
+                        )
+                      }
+
+                      Text {
+                        text: "–"
+                        color: Qt.darker(root.contentForeground, 1.5)
+                        font.pixelSize: Style.font.caption
+                        anchors.verticalCenter: parent.verticalCenter
+                      }
+
+                      TextField {
+                        id: newEndTime
+                        width: Style.space(56)
+                        text: "10:00"
+                        font.family: root.contentFontFamily
+                        font.pixelSize: Style.font.caption
+                        horizontalAlignment: TextInput.AlignHCenter
+                        onAccepted: root.submitNewEvent(
+                          newEventTitle.text,
+                          allDayBoxMouse.allDay,
+                          newStartTime.text,
+                          newEndTime.text,
+                          newEventLocation.text
+                        )
+                      }
+                    }
+                  }
+
+                  TextField {
+                    id: newEventLocation
+                    width: parent.width
+                    placeholderText: "Location (optional)"
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.bodySmall
+                    onAccepted: root.submitNewEvent(
+                      newEventTitle.text,
+                      allDayBoxMouse.allDay,
+                      newStartTime.text,
+                      newEndTime.text,
+                      newEventLocation.text
+                    )
+                  }
+
+                  Row {
+                    spacing: Style.space(8)
+
+                    Button {
+                      text: "Save Event"
+                      accent: Color.accent
+                      bordered: true
+                      onClicked: root.submitNewEvent(
+                        newEventTitle.text,
+                        allDayBoxMouse.allDay,
+                        newStartTime.text,
+                        newEndTime.text,
+                        newEventLocation.text
+                      )
+                    }
+
+                    Button {
+                      text: "Cancel"
+                      onClicked: root.closeAddEvent()
                     }
                   }
                 }
@@ -1136,7 +1404,7 @@ Panel {
                     id: cardContentCol
                     anchors.left: parent.left
                     anchors.leftMargin: Style.space(16)
-                    anchors.right: joinBtn.visible ? joinBtn.left : parent.right
+                    anchors.right: joinBtn.visible ? joinBtn.left : (deleteLocalBtn.visible ? deleteLocalBtn.left : parent.right)
                     anchors.rightMargin: Style.space(10)
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: Style.space(2)
@@ -1236,6 +1504,47 @@ Panel {
                     PanelToolTip {
                       visible: joinMouse.containsMouse
                       text: modelData.meetingUrl
+                      fontFamily: root.contentFontFamily
+                    }
+                  }
+
+                  // Delete button for local events
+                  Rectangle {
+                    id: deleteLocalBtn
+                    visible: !!modelData.isLocal
+                    anchors.right: parent.right
+                    anchors.rightMargin: Style.space(10)
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: Style.space(26)
+                    height: Style.space(26)
+                    radius: Style.cornerRadius > 0 ? height / 2 : 0
+                    color: deleteMouse.containsMouse
+                      ? Style.selectedFillFor(root.contentForeground, Color.accent)
+                      : "transparent"
+                    border.width: Style.spacing.hairline
+                    border.color: deleteMouse.containsMouse
+                      ? Style.selectedStateColor(root.contentForeground, Color.accent)
+                      : "transparent"
+
+                    Text {
+                      anchors.centerIn: parent
+                      text: "󰆴"
+                      color: deleteMouse.containsMouse ? Color.accent : Qt.darker(root.contentForeground, 1.8)
+                      font.family: root.contentFontFamily
+                      font.pixelSize: Style.font.bodySmall
+                    }
+
+                    MouseArea {
+                      id: deleteMouse
+                      anchors.fill: parent
+                      hoverEnabled: true
+                      cursorShape: Qt.PointingHandCursor
+                      onClicked: root.deleteLocalEvent(modelData.id)
+                    }
+
+                    PanelToolTip {
+                      visible: deleteMouse.containsMouse
+                      text: "Delete event"
                       fontFamily: root.contentFontFamily
                     }
                   }

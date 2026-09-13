@@ -20,6 +20,7 @@ Fred's Omarchy clock and calendar plugin, a shell bar widget featuring upcoming 
 | **Account Filter Chips** | Quick multi-account filtering (e.g. `All`, `Work`, `Personal`, `Projects`) directly in the agenda. |
 | **1-Click Meeting Join** | Automatically detects Google Meet, Zoom, Teams, and Webex links with safe, non-blocking `xdg-open` launches. |
 | **Markdown Copy** | Copy the selected day's complete agenda as structured Markdown (`y` hotkey or toolbar button). |
+| **Local Event Management** | Create, view, and delete local events directly in the agenda UI or via CLI/IPC without external calendar dependencies. Stored in standard RFC 5545 `.ics` format. |
 
 ---
 
@@ -27,7 +28,8 @@ Fred's Omarchy clock and calendar plugin, a shell bar widget featuring upcoming 
 
 - **Next-Event Countdown**: When an event is within 60 minutes (configurable via `badgeMinutes`), the bar widget displays the event title and time remaining.
 - **Rich Interactive Agenda**: Selecting any day in the month grid reveals its scheduled agenda cards, times, accounts, and meeting links.
-- **Privacy-First & Read-Only**: Consumes private `.ics` subscription URLs via standard HTTP GET. No OAuth tokens, no write permissions, no risk of accidental modifications or unwanted invite dispatches.
+- **Local Event Management**: Add and delete local events with title, date, time/all-day, and location directly in the UI or via CLI. Events persist in `~/.config/fred.clock/local.ics` and instantly hot-reload reactively.
+- **Privacy-First & Read-Only Feeds**: Consumes remote `.ics` subscription URLs via standard HTTP GET. No OAuth tokens, no write permissions, no risk of unwanted invite dispatches.
 - **Zero Daemon Dependencies**: Uses Python 3 standard library only (`ThreadPoolExecutor`, `urllib`, `zoneinfo`) for background fetching without extra background daemons.
 - **Robust Recurrence & Timezones**: Supports standard RFC 5545 recurrence rules (`RRULE`), exclusions (`EXDATE`), all-day events, and wall-clock time preservation across daylight saving transitions (DST).
 - **Non-Blocking Quickshell Integration**: Events are cached atomically at `~/.cache/fred.clock/events.json` (mode 0600) and watched reactively by Quickshell.
@@ -114,6 +116,30 @@ Events are pulled and cached automatically in the background—**no terminal com
 - **Manual (Optional)**: If you ever want to force a refresh from the terminal: `python3 ~/.config/omarchy/plugins/fred.clock/fetch-events.py`
 
 
+### Managing Local Events
+
+You can create and manage private local calendar events without external Google Calendar dependencies. Events are stored in standard RFC 5545 format at `~/.config/fred.clock/local.ics` (permissions `0600`) and automatically registered under the `"Local"` account.
+
+#### From the User Interface
+- Click the **`+`** button in the agenda header or press **`n`** / **`a`** while the panel is open.
+- Enter the event title, choose all-day or specify start/end times (e.g. `14:00` – `15:30`), optionally enter a location, and click **Save Event** (or press Enter).
+- To delete a local event, click the trash can icon (**`󰆴`**) on any local event card.
+
+#### From the Command Line / IPC
+```bash
+# Add an all-day local event
+python3 ~/.config/omarchy/plugins/fred.clock/manage-event.py add --date 2026-09-15 --summary "Doctor's Appointment" --all-day
+
+# Add a timed local event with location
+python3 ~/.config/omarchy/plugins/fred.clock/manage-event.py add --date 2026-09-15 --start-time 14:00 --end-time 15:30 --summary "Design Review" --location "Office 3B"
+
+# Delete a local event by UID
+python3 ~/.config/omarchy/plugins/fred.clock/manage-event.py delete --uid "<event-uid>"
+
+# Or trigger creation directly via Omarchy Shell IPC:
+omarchy-shell omarchy.clock createEvent "Sprint Planning" "2026-09-15" "false" "10:00" "11:00" "Conference Room"
+```
+
 ### Bar Settings
 
 Inline widget settings in `~/.config/omarchy/shell.json`:
@@ -134,12 +160,14 @@ Inline widget settings in `~/.config/omarchy/shell.json`:
 
 ### Agenda Panel
 - **Click Day Cell**: Select that date and display its agenda.
+- **`n` / `N` / `a` / `A`** (or `+` button): Open the inline "New Local Event" creator.
+- **Trash Button (`󰆴`)**: Delete a local event from its agenda card.
 - **`y` / `Y`** (or copy button): Copy the selected day's agenda as Markdown to clipboard.
 - **`t` / `T`** (or hero date click): Return to today.
 - **`[` / `]`** (or chevrons / mouse wheel): Previous / next month.
 - **`{` / `}`**: Previous / next year.
 - **`w` / `W`** (or "W" heading click): Toggle week start day (Sunday vs. Monday).
-- **Escape**: Close the panel.
+- **Escape**: Close the inline add event form (if open) or close the panel.
 
 ---
 

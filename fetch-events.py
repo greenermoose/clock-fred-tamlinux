@@ -435,6 +435,9 @@ def fetch_feed(feed_info: dict[str, Any], window_start: datetime.datetime, windo
             ev["account"] = account
             ev["calendar"] = cal_name
             ev["color"] = color
+            ev["isLocal"] = bool(path)
+            if path:
+                ev["localPath"] = os.path.expanduser(path)
         return raw_events
     except Exception as e:
         print(f"fetch-events: error parsing feed '{cal_name}': {e}", file=sys.stderr)
