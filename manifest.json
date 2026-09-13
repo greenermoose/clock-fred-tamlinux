@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "fred.clock",
   "name": "Clock",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "author": "Fred (@greenermoose)",
   "description": "Date/time label with upcoming countdown badge, interactive agenda, multi-calendar sync, and local event management",
   "repository": "https://github.com/greenermoose/omarchy-fred-clock",
