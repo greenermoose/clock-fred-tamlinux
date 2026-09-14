@@ -6,11 +6,15 @@ This repository practices transparent AI-assisted engineering. We document the A
 
 ## 1. Fred's Multi-Agent AI Toolchain
 
-| Tool & Interface | Backing Models | Primary Role |
-| :-- | :-- | :-- |
-| **Claude Code & Codex** | Claude 3.7 Sonnet, o3-mini | Planning, system architecture, marketplace remediation plan authoring (`fred-clock-plan.md`, `fred-clock-security-remediation.md`). |
-| **Antigravity CLI (`agy`)** | Gemini 3.8 Flash (High), Gemini 2.5 Pro | Implementation partner: countdown badge QML, multi-feed iCalendar recurrence engine in Python stdlib, local calendar event CRUD, marketplace security remediation (`Launch.qml`, rlimits, input caps, descriptor writes). |
-| **OpenCode** | Open-source models | Omarchy shell QML and Quickshell process execution guidance. |
+Rather than relying on a single AI model or interface, Fred uses a specialized toolchain tailored to each tool's strengths. CLI versions below were captured on 2026-09-13 (`<tool> --version`).
+
+| Tool & Interface | CLI Version | Backing Models | Primary Role in the Ecosystem |
+| :-- | :-- | :-- | :-- |
+| **Claude Code** (`claude`) | `2.1.267` | Claude Opus 5 (`claude-opus-5`) | **Architecture & System Planning**: Authoring durable system specifications, multi-step runbooks, and cross-cutting policies. |
+| **Codex CLI** (`codex`) | `0.154.0` | `gpt-6-astra`, `gpt-5.6-sol`, `gpt-5.6-terra` | **Architecture & System Planning**: Second opinion on plans and specifications alongside Claude. |
+| **Antigravity CLI** (`agy`) | `1.2.2` | Gemini 3.8 Flash (High) | **Coding, Refactoring & Implementation**: Primary coding partner for multi-file pair-programming, security remediation, bash/Python/QML engineering, and git release workflow. |
+| **OpenCode** (`opencode`) | `1.18.30` | Big Pickle | **Distro & System Q&A**: Efficient lookups for Arch Linux / Omarchy package specifics and shell configuration, conserving frontier-model token budgets. |
+| **Grok CLI** (`grok`) | `1.0.25` (`f7e67d6988e2`, stable) | Grok 4.6 | **Workstation Support**: Additional debugging, hardware diagnostics, and alternative implementation analysis. |
 
 ---
 
