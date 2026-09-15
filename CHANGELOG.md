@@ -2,6 +2,15 @@
 
 All notable changes to `fred.clock` (`omarchy-fred-clock`) will be documented in this file.
 
+## [1.3.1] - 2026-09-15
+
+### Fixed
+- **Post-Suspend Clock Freeze & Multi-Monitor Resync**:
+  - Toggled `clock.enabled = false; clock.enabled = true;` inside `refresh()` to abort Quickshell's stale monotonic `QTimer` (`src/core/clock.cpp`), force an immediate wall-clock query, and reschedule the timer to the next upcoming minute mark.
+  - Implemented `broadcastClock("refresh")` across `bar.moduleWidgets || bar._moduleWidgets` so that `omarchy-shell omarchy.clock refresh` and `fred.clock` IPC calls update clock widgets across all active monitors simultaneously.
+  - Recalculated agenda countdown badges immediately upon wake (`recalculateBadge()`) so stale countdowns (e.g. past events) disappear without waiting for network calendar fetch loops.
+  - Added dedicated `fred.clock` `IpcHandler` alongside stock `omarchy.clock`.
+
 ## [1.3.0] - 2026-09-13
 
 ### Security Remediation

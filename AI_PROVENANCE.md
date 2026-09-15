@@ -26,5 +26,6 @@ Rather than relying on a single AI model or interface, Fred uses a specialized t
 | **Milestone B (Agenda & Sync)** | `v1.0.0` – `v1.1.0` | Antigravity (Gemini) | Pure Python stdlib recurrence engine (`fetch-events.py`), Google Calendar secret iCal feed sync, interactive agenda popout. |
 | **Local Calendar CRUD** | `v1.2.0` | Antigravity (Gemini) | Local event creation, editing, deletion via `manage-event.py`, atomic JSON storage, `notify-send` desktop alerts. |
 | **Security Remediation** | `v1.3.0` | Antigravity (Gemini) | Omarchy Plugin Marketplace review remediation (issue #6509): centralized `Launch.qml` runner, closed environment, strict timeouts, input size limits, file descriptor validation. |
+| **Post-Suspend Resync & Multi-Monitor IPC** | `v1.3.1` | Antigravity (Gemini 3.8 Flash) | Resynchronize `SystemClock` and recalculate event countdown badge on wake from suspend by cycling `clock.enabled`. Relay IPC commands across displays via `bar._moduleWidgets`. |
 
 Detailed session logs and prompts are documented in [`docs/ai/sessions.md`](docs/ai/sessions.md).

@@ -189,9 +189,33 @@ BarWidget {
   }
 
   function refresh() {
+    clock.enabled = false
+    clock.enabled = true
     displayDate = new Date()
+    recalculateBadge()
     runFetch()
     if (panelLoader.item && panelLoader.item.refresh) panelLoader.item.refresh()
+  }
+
+  function broadcastClock(method) {
+    var fn = bar ? (bar.moduleWidgets || bar._moduleWidgets) : null
+    var candidates = [root.moduleName, "fred.clock", "omarchy.clock"]
+    var items = []
+    for (var c = 0; c < candidates.length; c++) {
+      if (typeof fn === "function") {
+        var found = fn(candidates[c])
+        if (found && found.length > 0) {
+          items = found
+          break
+        }
+      }
+    }
+    if (!items || items.length === 0) items = [root]
+    for (var i = 0; i < items.length; i++) {
+      if (items[i] && typeof items[i][method] === "function") {
+        items[i][method]()
+      }
+    }
   }
 
   function cycleFormat() {
@@ -289,7 +313,7 @@ BarWidget {
   IpcHandler {
     target: "omarchy.clock"
 
-    function refresh(): void { root.broadcast("refresh") }
+    function refresh(): void { root.broadcastClock("refresh") }
     function cycleFormat(): void { root.cycleFormat() }
     function toggleWeekStart(): void { root.toggleWeekStart() }
     function open(): void { root.open() }
@@ -354,6 +378,30 @@ BarWidget {
       manageProc.args = [script, "delete", "--uid", uid]
       manageProc.launch()
       root.notify("Event Deleted", "Local event removed")
+    }
+  }
+
+  IpcHandler {
+    target: "fred.clock"
+
+    function refresh(): void { root.broadcastClock("refresh") }
+    function cycleFormat(): void { root.cycleFormat() }
+    function toggleWeekStart(): void { root.toggleWeekStart() }
+    function open(): void { root.open() }
+    function close(): void { root.close() }
+    function show(): void { root.open() }
+    function hide(): void { root.close() }
+    function toggle(): void { root.togglePanel() }
+    function selectDate(key: string): void {
+      if (panelLoader.item && panelLoader.item.selectDateString) {
+        panelLoader.item.selectDateString(key)
+        root.open()
+      }
+    }
+    function copyAgenda(): void {
+      if (panelLoader.item && panelLoader.item.copyDayMarkdown) {
+        panelLoader.item.copyDayMarkdown()
+      }
     }
   }
 
