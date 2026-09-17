@@ -134,7 +134,7 @@ Chronological records of prompts, tool versions, and architectural decisions for
 
 - **Primary AI Agent**: Claude Code (`claude 2.1.273`)
 - **Primary Model**: Claude Opus 5 (`claude-opus-5`)
-- **Commits**: _(see git log for v1.3.2)_
+- **Commits**: `5b6f3f1`
 - **Transcript Reference**: Claude Code `8657ead7-7e1f-47a8-a5ab-2522fff58adb`
 - **Prompts**:
   > **Fred:**
