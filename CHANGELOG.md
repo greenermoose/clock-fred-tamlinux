@@ -2,6 +2,16 @@
 
 All notable changes to `fred.clock` (`omarchy-fred-clock`) will be documented in this file.
 
+## [1.3.2] - 2026-09-16
+
+### Fixed
+- **`Launch.qml` never compiled** (widget vanished from the bar, replaced by the shell's fallback icons): `Quickshell.Io.Process` has no default property, so the two watchdog `Timer` children made the component fail with `Cannot assign to non-existent default property` and every `Launch { }` call site with `Type Launch unavailable`. The timers are now object-valued properties (`termTimer`, `killTimer`) of the `Process`.
+- **Closed environment allowlist was never applied**: `Model.pickEnv` probed for the `Quickshell` singleton from a plain JavaScript library, where QML module singletons are not in scope, so every supervised process received only `PATH`. `Launch.qml` now passes `Quickshell.env` in as a lookup function; the fetcher gets `HOME`/`TZ`/`LANG`/`XDG_*` again and the notifier its Wayland/D-Bus variables.
+- `USER_AGENT` in `fetch-events.py` now carries the real version.
+
+### Why 1.3.0 and 1.3.1 appeared to work
+Qt validates its on-disk QML cache (`~/.cache/quickshell/qmlcache`) by source mtime only, and Home Manager deploys the plugin from the Nix store where every file has mtime 1970. The bar kept serving the pre-1.3.0 compile of `BarWidget.qml` (no `Launch` reference) across every deploy and shell restart; the first cache purge (2026-09-16) exposed the failure. Deploys must purge the cache (`omarchy-qmlcache-purge`) before restarting the shell — see `omarchy-fred-plugin dev|update`.
+
 ## [1.3.1] - 2026-09-15
 
 ### Fixed

@@ -1,4 +1,5 @@
 import QtQuick
+import Quickshell
 import Quickshell.Io
 import "Model.js" as Model
 
@@ -14,7 +15,7 @@ Process {
   property string stdinText: ""
   command: exe !== "" ? [exe].concat(args) : []
   clearEnvironment: true
-  environment: Model.pickEnv(envKeys, { PATH: "/usr/bin" })
+  environment: Model.pickEnv(envKeys, { PATH: "/usr/bin" }, function (name) { return Quickshell.env(name) })
   stdinEnabled: stdinText !== ""
   function launch() {
     if (!running && exe !== "") {
@@ -33,16 +34,16 @@ Process {
     termTimer.stop()
     killTimer.stop()
   }
-  Timer {
-    id: termTimer
+  // Process has no default property, so the watchdog timers cannot be
+  // declared as children; they live in object-valued properties instead.
+  readonly property Timer termTimer: Timer {
     interval: proc.deadlineMs
     onTriggered: {
       proc.signal(15)
-      killTimer.restart()
+      proc.killTimer.restart()
     }
   }
-  Timer {
-    id: killTimer
+  readonly property Timer killTimer: Timer {
     interval: 3000
     onTriggered: proc.signal(9)
   }

@@ -267,7 +267,10 @@ function stepMonth(year, month, delta) {
   return { year: target.getFullYear(), month: target.getMonth() }
 }
 
-function pickEnv(keys, extra) {
+// lookup(name) returns the shell's value for one variable. The caller passes
+// Quickshell.env from QML: module singletons are not in scope inside a plain
+// JavaScript library, so this file cannot reach Quickshell itself.
+function pickEnv(keys, extra, lookup) {
   var env = {}
   if (extra) {
     for (var k in extra) {
@@ -276,10 +279,10 @@ function pickEnv(keys, extra) {
       }
     }
   }
-  if (keys && typeof Quickshell !== "undefined" && Quickshell.env) {
+  if (keys && typeof lookup === "function") {
     for (var i = 0; i < keys.length; i++) {
       var key = keys[i]
-      var val = Quickshell.env(key)
+      var val = lookup(key)
       if (val !== undefined && val !== null && val !== "") {
         env[key] = String(val)
       }
