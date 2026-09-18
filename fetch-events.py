@@ -27,7 +27,7 @@ import urllib.request
 import zoneinfo
 from typing import Any, Iterator
 
-USER_AGENT = "fred.clock/1.3.2 (Omarchy Shell Plugin)"
+USER_AGENT = "fred.clock/1.3.3 (Omarchy Shell Plugin)"
 DEFAULT_CONFIG_PATH = os.path.expanduser("~/.config/fred.clock/calendars.json")
 DEFAULT_CACHE_PATH = os.path.expanduser("~/.cache/fred.clock/events.json")
 

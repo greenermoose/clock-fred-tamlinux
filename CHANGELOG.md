@@ -2,6 +2,12 @@
 
 All notable changes to `fred.clock` (`omarchy-fred-clock`) will be documented in this file.
 
+## [1.3.3] - 2026-09-18
+
+### Added
+- **Version Footers**: Embedded running version in bar hover tooltip (`BarWidget.qml`) and as a centered, styled footer at the bottom of the open agenda popup panel (`Panel.qml`).
+- Bumped `USER_AGENT` in `fetch-events.py` to `1.3.3`.
+
 ## [1.3.2] - 2026-09-16
 
 ### Fixed

@@ -21,6 +21,8 @@ Panel {
   ipcTarget: "omarchy.clock"
   manageIpc: false
 
+  readonly property string pluginVersion: "1.3.3"
+
   property var anchorItem: null
 
   // The bar tracks the widget mounted in its slot — BarWidget.qml — not this
@@ -1611,6 +1613,22 @@ Panel {
                   }
                 }
               }
+            }
+          }
+
+          // ---------- Version Footer ----------
+          Item {
+            width: parent.width
+            height: Style.space(22)
+
+            Text {
+              anchors.centerIn: parent
+              textFormat: Text.PlainText
+              text: "fred.clock v" + root.pluginVersion
+              color: root.contentForeground
+              opacity: 0.45
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.caption
             }
           }
         }

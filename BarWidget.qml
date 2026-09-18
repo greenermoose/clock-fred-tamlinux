@@ -14,6 +14,8 @@ BarWidget {
   id: root
   moduleName: "omarchy.clock"
 
+  readonly property string pluginVersion: "1.3.3"
+
   property date displayDate: clock.date
 
   readonly property string configuredFormat: vertical
@@ -410,7 +412,10 @@ BarWidget {
     anchors.fill: parent
     bar: root.bar
     text: root.vertical ? "" : root.fullLabel
-    tooltipText: root.countdownBadge !== "" ? root.countdownBadge : ""
+    tooltipText: {
+      var ver = "fred.clock v" + root.pluginVersion
+      return root.countdownBadge !== "" ? (root.countdownBadge + "\n\n" + ver) : ver
+    }
     labelVisible: !root.vertical
     hasVisualContent: root.vertical ? root.verticalLines.length > 0 : text !== ""
     fixedHeight: root.vertical ? root.verticalLines.length * Style.bar.iconSlot : -1

@@ -151,3 +151,25 @@ Chronological records of prompts, tool versions, and architectural decisions for
   - `omarchy-notification-send`, `xdg-settings` and `wl-copy` each run under the exact allowlisted environment from a clean `env -i`.
   - `python3 -m unittest discover -s tests`: 21 tests OK.
 
+---
+
+## Session: 2026-09-18 — Version Footers & Running Status Display (v1.3.3)
+
+- **Primary AI Agent**: Antigravity CLI (`agy 1.2.6`)
+- **Primary Model**: Gemini 3.8 Flash (High) (`gemini-3.8-flash-high`)
+- **Conversation ID**: `322664c3-5bc9-4253-af58-a97c0d5f900a`
+- **Prompts**:
+  > **Fred:**
+  > "Check which version of fred.workspaces is published. Have we released 1.5.1 yet? Add a version footer to all fred plugins: fred.workspaces, fred.clock, fred.sysinfo, etc. I want to see that version info on hover for all fred plugins as well as when the plugin is open (in the case of fred.clock and fred.sysinfo). That will allow me to quickly tell which version of my plugins are running."
+  >
+  > "Bump the version numbers for each plugin, push to GitHub, and release."
+- **Key Decisions & Implementation Notes**:
+  - **Running Version Reporting**: Defined `readonly property string pluginVersion: "1.3.3"` in both `BarWidget.qml` and `Panel.qml`.
+  - **Bar Hover Tooltip**: Updated `WidgetButton.tooltipText` in `BarWidget.qml` to display `fred.clock v1.3.3` on hover (or below countdown badge if active).
+  - **Open Popup Footer**: Added subtle, centered version footer `fred.clock v1.3.3` at the bottom of the agenda view (`Panel.qml`) below the events list.
+  - Bumped `USER_AGENT` in `fetch-events.py` to `1.3.3`.
+- **Verification**:
+  - `omarchy plugin validate` clean with 0 errors.
+  - Live bar verification via dev link, `omarchy-qmlcache-purge`, and shell restart.
+
+
