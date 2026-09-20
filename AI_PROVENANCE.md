@@ -30,4 +30,4 @@ Rather than relying on a single AI model or interface, Fred uses a specialized t
 | **Latent compile failure & closed-env fix** | `v1.3.2` | Claude Code (Claude Opus 5) | `Launch.qml` had never compiled (`Process` has no default property for `Timer` children) and the env allowlist never applied (`Quickshell` singleton out of scope in `Model.js`); both masked by Qt's mtime-only qmlcache on Nix-store files. Timers moved to object-valued properties; `pickEnv` takes a lookup function. |
 | **Version Footers & Visual Status** | `v1.3.3` | Antigravity CLI (`agy 1.2.6`, `Gemini 3.8 Flash (High)`) | Embedded running version in bar hover tooltip (`BarWidget.qml`) and as a centered, styled footer at the bottom of the open agenda popup panel (`Panel.qml`). |
 
-Detailed session logs and prompts are documented in [`docs/ai/sessions.md`](docs/ai/sessions.md).
+Detailed session logs and prompts are documented in [`docs/ai/README.md`](docs/ai/README.md).
