@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to `fred.clock` (`omarchy-fred-clock`) will be documented in this file.
+All notable changes to `fred.clock` (`clock-fred-tamlinux`) will be documented in this file.
 
 ## [1.3.3] - 2026-09-18
 
