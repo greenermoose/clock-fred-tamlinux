@@ -31,3 +31,7 @@ Rather than relying on a single AI model or interface, Fred uses a specialized t
 | **Version Footers & Visual Status** | `v1.3.3` | Antigravity CLI (`agy 1.2.6`, `Gemini 3.8 Flash (High)`) | Embedded running version in bar hover tooltip (`BarWidget.qml`) and as a centered, styled footer at the bottom of the open agenda popup panel (`Panel.qml`). |
 
 Detailed session logs and prompts are documented in [`docs/ai/README.md`](docs/ai/README.md).
+
+## 2026-09-22 repository rename
+
+Codex CLI `0.155.1` (`gpt-6-sol`) updated canonical GitHub links for `clock-fred-tamlinux`. [Session record](docs/ai/2026-09-22-github-repository-rename.md).

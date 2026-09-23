@@ -41,7 +41,7 @@ Fred's Omarchy clock and calendar plugin, a shell bar widget featuring upcoming 
 Install using Omarchy's plugin manager:
 
 ```bash
-omarchy plugin add https://github.com/greenermoose/omarchy-fred-clock.git --enable --yes
+omarchy plugin add https://github.com/greenermoose/clock-fred-tamlinux.git --enable --yes
 ```
 
 ### Bar Center Anchor
