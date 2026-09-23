@@ -35,3 +35,7 @@ The following errors were found and corrected during transcript verification on 
 | Sep 18 (v1.3.3) | 3 follow-up prompts omitted | Added from transcript |
 | Sep 11–12 (v0.1.0–v1.2.0) | agy version given as `1.2.2` | Not confirmed in transcripts; noted as unverified |
 | Sep 18 (v1.3.3) | agy version given as `1.2.6` | Not confirmable from transcript; noted as unverified |
+
+## 2026-09-23 upstream survey foundation
+
+- [Codex session record](2026-09-23-upstream-survey-foundation.md).

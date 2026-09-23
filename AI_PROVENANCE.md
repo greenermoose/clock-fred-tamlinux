@@ -11,7 +11,7 @@ Rather than relying on a single AI model or interface, Fred uses a specialized t
 | Tool & Interface | CLI Version | Backing Models | Primary Role in the Ecosystem |
 | :-- | :-- | :-- | :-- |
 | **Claude Code** (`claude`) | `2.1.267` / `2.1.273` | Claude Opus 5 (`claude-opus-5`) | **Architecture & System Planning**: Authoring durable system specifications, multi-step runbooks, and cross-cutting policies. |
-| **Codex CLI** (`codex`) | `0.154.0` | `gpt-6-astra`, `gpt-5.6-sol`, `gpt-5.6-terra` | **Architecture & System Planning**: Second opinion on plans and specifications alongside Claude. |
+| **Codex CLI** (`codex`) | `0.156.1` | `gpt-6-astra`, `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-6-sol` | **Architecture & System Planning**: Second opinion on plans and specifications alongside Claude. |
 | **Antigravity CLI** (`agy`) | `1.2.2` / `1.2.3` / `1.2.6` | Gemini 3.8 Flash (High) | **Coding, Refactoring & Implementation**: Primary coding partner for multi-file pair-programming, security remediation, bash/Python/QML engineering, and git release workflow. |
 | **OpenCode** (`opencode`) | `1.18.30` | Big Pickle | **Distro & System Q&A**: Efficient lookups for Arch Linux / Omarchy package specifics and shell configuration, conserving frontier-model token budgets. |
 | **Grok CLI** (`grok`) | `1.0.25` (`f7e67d6988e2`, stable) | Grok 4.6 | **Workstation Support**: Additional debugging, hardware diagnostics, and alternative implementation analysis. |
@@ -39,3 +39,10 @@ Codex CLI `0.155.1` (`gpt-6-sol`) updated canonical GitHub links for `clock-fred
 ## 2026-09-22 Tamlinux branding
 
 Cursor `3.21.16` (`composer`) replaced the current-facing `Fred's Omarchy clock` tagline with Tamlinux. Stock `omarchy.clock` wording is unchanged.
+
+## 2026-09-23 upstream survey foundation
+
+Codex CLI `0.156.1` (`gpt-6-sol`) established the root upstream reference
+and dated survey directory for this repository. This was documentation only;
+no field survey or runtime change was made.
+[Session record](docs/ai/2026-09-23-upstream-survey-foundation.md).
