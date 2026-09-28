@@ -3,8 +3,8 @@
 - **Primary AI Agent**: Antigravity CLI (`agy`)
 - **Primary Model**: Gemini 3.8 Flash (High)
 - **agy version**: Not recorded in transcript. Only version string found in transcript
-  binary is `1.2.0`; `1.2.2` was stated by Fred in a later session (`1e9ddb7c`).
-- **Transcript**: Antigravity `0c27626f-8ff7-4c6e-a631-a281cf03b694`
+  binary is `1.2.0`; `1.2.2` was stated by Fred in a later session.
+- **Transcript**: Retained privately by the author.
 - **Session start**: 2026-09-11T15:25:31-04:00 (from `ADDITIONAL_METADATA`)
 - **Session end**: This session continued into Sep 12 (see next two session files,
   which share this same transcript UUID)

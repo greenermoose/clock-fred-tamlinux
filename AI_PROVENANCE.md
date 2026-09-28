@@ -4,6 +4,17 @@ This repository practices transparent AI-assisted engineering. We document the A
 
 ---
 
+## How to read this record
+
+This repository follows the Tamlinux [AI provenance standard](https://github.com/greenermoose/tamlinux/blob/main/docs/ai-provenance-standard.md). In
+brief: commits made with AI help carry `AI-Tool` and `AI-Model` trailers, and
+each session record in [`docs/ai/`](docs/ai/) gives the date, tool version,
+model, Fred's guiding prompts verbatim, the commits, and the decisions. Session
+transcripts are retained privately by the author, so the records carry no
+session IDs or local transcript paths.
+
+---
+
 ## 1. Fred's Multi-Agent AI Toolchain
 
 Rather than relying on a single AI model or interface, Fred uses a specialized toolchain tailored to each tool's strengths. CLI versions below were captured on 2026-09-13 (`<tool> --version`).
@@ -46,3 +57,10 @@ Codex CLI `0.156.1` (`gpt-6-sol`) established the root upstream reference
 and dated survey directory for this repository. This was documentation only;
 no field survey or runtime change was made.
 [Session record](docs/ai/2026-09-23-upstream-survey-foundation.md).
+
+## 2026-09-28 private session IDs
+
+Claude Code `2.1.283` (`claude-opus-5-5`) removed session IDs and local
+transcript paths from this repository's AI records and linked the public
+provenance standard. Documentation only.
+[Session record](docs/ai/2026-09-28-private-session-ids.md).

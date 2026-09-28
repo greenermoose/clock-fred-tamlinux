@@ -7,7 +7,7 @@
   in the system prompt), so string-search is not a reliable version indicator here.
   The prior `sessions.md` entry of `agy 1.2.6` is plausible given the session date
   but is **unverified against this transcript**.
-- **Transcript**: Antigravity `322664c3-5bc9-4253-af58-a97c0d5f900a`
+- **Transcript**: Retained privately by the author.
 - **Session start**: 2026-09-18T09:46:17-04:00 (from `ADDITIONAL_METADATA`)
 - **Commits**: Not listed in prior `sessions.md` for this session
 

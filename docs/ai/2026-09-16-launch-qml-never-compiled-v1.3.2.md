@@ -3,7 +3,7 @@
 - **Primary AI Agent**: Claude Code (`claude`)
 - **Primary Model**: Claude Opus 5 (`claude-opus-5`) — confirmed from `"model"` field in transcript
 - **Claude version**: `2.1.273` — confirmed from `"version"` field in transcript
-- **Transcript**: Claude Code `8657ead7-7e1f-47a8-a5ab-2522fff58adb`
+- **Transcript**: Retained privately by the author.
 - **Session start**: 2026-09-16T22:39:51-04:00 (from transcript timestamp `2026-09-17T02:39:51.316Z` UTC)
   — **Note**: the prior `sessions.md` date of `2026-09-16` is correct (local time).
 - **Commits**: `5b6f3f1` (2026-09-16 22:52)

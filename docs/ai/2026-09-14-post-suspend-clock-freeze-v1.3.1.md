@@ -5,7 +5,7 @@
 - **agy version**: `1.2.2` — confirmed from transcript content: Fred stated
   "This was done with agy 1.2.2 with model Gemini 3.8 Flash" verbatim in this session,
   and `agy 1.2.2` appears in the transcript text.
-- **Transcript**: Antigravity `1e9ddb7c-ea23-4962-99fb-8f7df3252f94`
+- **Transcript**: Retained privately by the author.
 - **Session start**: 2026-09-14T17:35:28-04:00 (from `ADDITIONAL_METADATA`)
   — **Note**: the prior `sessions.md` dated this session `2026-09-15`; the transcript
   confirms it began on the evening of **2026-09-14** (the session ran overnight into Sep 15).

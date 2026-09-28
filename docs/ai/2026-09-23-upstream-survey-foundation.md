@@ -3,7 +3,7 @@
 - **CLI tool:** Codex CLI `0.156.1` (checked on 2026-09-23)
 - **Model:** `gpt-6-sol` (verified in the Codex session transcript)
 - **Content commit:** `ab645c7`
-- **Transcript reference:** Codex session `01a0cf84-a164-7192-aa45-e04a7e64ca48`
+- **Transcript**: Retained privately by the author.
 - **Scope:** Documentation and survey structure for the clock repository; no field survey or product implementation.
 
 ## User direction

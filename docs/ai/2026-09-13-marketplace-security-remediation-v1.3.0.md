@@ -6,7 +6,7 @@
   transcript binary; `1.2.2` was the version Fred referenced in a later session.
   Attribution as `agy 1.2.2` in the prior `sessions.md` is **unverified against this transcript**.
 - **Marketplace Issue**: [omacom/omarchy-plugin-marketplace#6509](https://github.com/omacom/omarchy-plugin-marketplace/issues/6509)
-- **Transcript**: Antigravity `daa8b90d-550d-4b27-b6a0-f407a3fe7c6c`
+- **Transcript**: Retained privately by the author.
 - **Session start**: 2026-09-13T07:51:31-04:00 (from `ADDITIONAL_METADATA`)
   — **Note**: the prior `sessions.md` dated this session `2026-09-14`; the transcript
   confirms it began on **2026-09-13**.

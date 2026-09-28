@@ -4,8 +4,8 @@
 - **Primary Model**: Gemini 3.8 Flash (High)
 - **agy version**: Not recorded in transcript (see note in
   [`2026-09-11-clone-parity-clonedfrom-countdown-badge.md`](2026-09-11-clone-parity-clonedfrom-countdown-badge.md))
-- **Transcript**: Antigravity `0c27626f-8ff7-4c6e-a631-a281cf03b694` (same session as
-  Sep 11 — this is a continuation, not a new conversation)
+- **Transcript**: Retained privately by the author. Same Antigravity session as
+  Sep 11 — this is a continuation, not a new conversation.
 - **Session start (this work)**: 2026-09-12T07:22:57-04:00 (estimated from transcript)
 - **Commits**: `efc0575` (2026-09-12 07:25), `7a27e22` (2026-09-12 07:28),
   `1e5e8dc` (2026-09-12 07:39), `b16d974` (2026-09-12 08:00), `d47a979` (2026-09-12 08:25)
