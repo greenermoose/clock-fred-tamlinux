@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "fred.clock",
   "name": "Clock",
-  "version": "1.3.3",
+  "version": "2.0.0",
   "author": "Fred (@greenermoose)",
   "description": "Date/time label with upcoming countdown badge, interactive agenda, multi-calendar sync, and local event management",
   "repository": "https://github.com/greenermoose/clock-fred-tamlinux",
@@ -19,8 +19,5 @@
     "description": "Date/time label with upcoming countdown badge, interactive agenda, and multi-calendar sync",
     "category": "Time",
     "allowMultiple": false
-  },
-  "omarchy": {
-    "clonedFrom": "omarchy.clock"
   }
 }

@@ -14,6 +14,7 @@ architectural decisions for `clock-fred-tamlinux`.
 
 | Date | Topic | Primary Tool | Model | Session Document |
 | :-- | :-- | :-- | :-- | :-- |
+| 2026-10-03 | Shell-independent 2.0.0 | Cursor `3.23.12` | `composer` | [`2026-10-03-shell-independent-2.0.0.md`](2026-10-03-shell-independent-2.0.0.md) |
 | 2026-09-11 | Clone Parity, `clonedFrom` & Countdown Badge (v0.1.0) | `agy` | Gemini 3.8 Flash (High) | [`2026-09-11-clone-parity-clonedfrom-countdown-badge.md`](2026-09-11-clone-parity-clonedfrom-countdown-badge.md) |
 | 2026-09-12 | Read-Only Agenda & stdlib iCal Engine (v1.0.0, v1.1.0) | `agy` | Gemini 3.8 Flash (High) | [`2026-09-12-read-only-agenda-ical-engine-v1.0.0.md`](2026-09-12-read-only-agenda-ical-engine-v1.0.0.md) |
 | 2026-09-12 | Local Event CRUD & Reminders (v1.2.0) | `agy` | Gemini 3.8 Flash (High) | [`2026-09-12-local-event-crud-reminders-v1.2.0.md`](2026-09-12-local-event-crud-reminders-v1.2.0.md) |

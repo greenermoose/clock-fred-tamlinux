@@ -1,8 +1,9 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
-import qs.Commons
-import qs.Ui
+import Tam.Commons
+import Tam.Ui
+import "."
 import "Model.js" as Model
 
 // Date/time label for the bar, and the host for the calendar popup.
@@ -12,9 +13,9 @@ import "Model.js" as Model
 // middle click opens the timezone picker.
 BarWidget {
   id: root
-  moduleName: "omarchy.clock"
+  moduleName: "fred.clock"
 
-  readonly property string pluginVersion: "1.3.3"
+  readonly property string pluginVersion: "2.0.0"
 
   property date displayDate: clock.date
 
@@ -78,9 +79,11 @@ BarWidget {
   }
 
   function runFetch() {
-    if (!fetchProc.running) {
-      fetchProc.launch()
+    if (Quickshell.env("TAMLINUX_CLOCK_OFFLINE") === "1") {
+      console.log("TAMLINUX_EVIDENCE fetch-suppressed")
+      return
     }
+    if (!fetchProc.running) fetchProc.launch()
   }
 
   FileView {
@@ -172,7 +175,7 @@ BarWidget {
   Timer {
     id: fetchTimer
     interval: 15 * 60 * 1000
-    running: true
+    running: Quickshell.env("TAMLINUX_CLOCK_OFFLINE") !== "1"
     repeat: true
     onTriggered: root.runFetch()
   }
@@ -201,7 +204,7 @@ BarWidget {
 
   function broadcastClock(method) {
     var fn = bar ? (bar.moduleWidgets || bar._moduleWidgets) : null
-    var candidates = [root.moduleName, "fred.clock", "omarchy.clock"]
+    var candidates = [root.moduleName, "fred.clock"]
     var items = []
     for (var c = 0; c < candidates.length; c++) {
       if (typeof fn === "function") {
@@ -313,7 +316,7 @@ BarWidget {
   }
 
   IpcHandler {
-    target: "omarchy.clock"
+    target: "tamlinux.clock"
 
     function refresh(): void { root.broadcastClock("refresh") }
     function cycleFormat(): void { root.cycleFormat() }
@@ -335,6 +338,10 @@ BarWidget {
       }
     }
     function openAddEvent(): void {
+      if (Quickshell.env("TAMLINUX_CLOCK_OFFLINE") === "1") {
+        if (root.bar && root.bar.reportUnsupported) root.bar.reportUnsupported("event-edit")
+        return
+      }
       root.open()
       if (panelLoader.item && panelLoader.item.openAddEvent) {
         panelLoader.item.openAddEvent()
@@ -351,6 +358,10 @@ BarWidget {
       }
     }
     function createEvent(summary: string, date: string, allDay: string, startTime: string, endTime: string, location: string): void {
+      if (Quickshell.env("TAMLINUX_CLOCK_OFFLINE") === "1") {
+        if (root.bar && root.bar.reportUnsupported) root.bar.reportUnsupported("event-edit")
+        return
+      }
       if (manageProc.running) {
         root.notify("Calendar Busy", "Another calendar update is in progress")
         return
@@ -372,6 +383,10 @@ BarWidget {
       root.notify("Event Added", summary + " (" + date + ")")
     }
     function deleteEvent(uid: string): void {
+      if (Quickshell.env("TAMLINUX_CLOCK_OFFLINE") === "1") {
+        if (root.bar && root.bar.reportUnsupported) root.bar.reportUnsupported("event-edit")
+        return
+      }
       if (manageProc.running) {
         root.notify("Calendar Busy", "Another calendar update is in progress")
         return
@@ -380,30 +395,6 @@ BarWidget {
       manageProc.args = [script, "delete", "--uid", uid]
       manageProc.launch()
       root.notify("Event Deleted", "Local event removed")
-    }
-  }
-
-  IpcHandler {
-    target: "fred.clock"
-
-    function refresh(): void { root.broadcastClock("refresh") }
-    function cycleFormat(): void { root.cycleFormat() }
-    function toggleWeekStart(): void { root.toggleWeekStart() }
-    function open(): void { root.open() }
-    function close(): void { root.close() }
-    function show(): void { root.open() }
-    function hide(): void { root.close() }
-    function toggle(): void { root.togglePanel() }
-    function selectDate(key: string): void {
-      if (panelLoader.item && panelLoader.item.selectDateString) {
-        panelLoader.item.selectDateString(key)
-        root.open()
-      }
-    }
-    function copyAgenda(): void {
-      if (panelLoader.item && panelLoader.item.copyDayMarkdown) {
-        panelLoader.item.copyDayMarkdown()
-      }
     }
   }
 
@@ -424,7 +415,7 @@ BarWidget {
 
     onPressed: function(b) {
       if (b === Qt.RightButton) root.cycleFormat()
-      else if (b === Qt.MiddleButton) { if (root.bar) root.bar.run("omarchy-menu-timezone") }
+      else if (b === Qt.MiddleButton) { if (root.bar && root.bar.openTimezoneMenu) root.bar.openTimezoneMenu() }
       else root.togglePanel()
     }
 

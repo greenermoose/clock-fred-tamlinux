@@ -1,8 +1,9 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
-import qs.Commons
-import qs.Ui
+import Tam.Commons
+import Tam.Ui
+import "."
 import "Model.js" as Model
 
 // The clock's calendar popup: a month grid with ISO week numbers, built to
@@ -17,11 +18,12 @@ import "Model.js" as Model
 // anchor against.
 Panel {
   id: root
-  moduleName: "omarchy.clock"
-  ipcTarget: "omarchy.clock"
+  moduleName: "fred.clock"
+  readonly property bool eventEditingEnabled: Quickshell.env("TAMLINUX_CLOCK_OFFLINE") !== "1"
+  ipcTarget: "fred.clock"
   manageIpc: false
 
-  readonly property string pluginVersion: "1.3.3"
+  readonly property string pluginVersion: "2.0.0"
 
   property var anchorItem: null
 
@@ -316,11 +318,19 @@ Panel {
 
   property bool addEventOpen: false
 
+  function refuseEventEdit() {
+    if (root.eventEditingEnabled) return false
+    if (root.bar && root.bar.reportUnsupported) root.bar.reportUnsupported("event-edit")
+    return true
+  }
+
   function toggleAddEvent() {
+    if (root.refuseEventEdit()) return
     root.addEventOpen = !root.addEventOpen
   }
 
   function openAddEvent() {
+    if (root.refuseEventEdit()) return
     root.addEventOpen = true
   }
 
@@ -329,6 +339,7 @@ Panel {
   }
 
   function submitNewEvent(title, allDay, startTime, endTime, location, targetDate) {
+    if (root.refuseEventEdit()) return
     if (!title || !title.trim()) return
     if (root.hostWidget && root.hostWidget.manageProc && root.hostWidget.manageProc.running) {
       notify("Calendar Busy", "Another calendar update is in progress")
@@ -360,6 +371,7 @@ Panel {
   }
 
   function deleteLocalEvent(eventUid) {
+    if (root.refuseEventEdit()) return
     if (!eventUid) return
     if (root.hostWidget && root.hostWidget.manageProc && root.hostWidget.manageProc.running) {
       notify("Calendar Busy", "Another calendar update is in progress")
@@ -1129,6 +1141,7 @@ Panel {
 
                   PanelActionButton {
                     id: agendaAddBtn
+                    visible: root.eventEditingEnabled
                     iconText: "󰐕"
                     tooltipText: "Add local event (n)"
                     foreground: root.contentForeground
@@ -1567,7 +1580,7 @@ Panel {
                   // Delete button for local events
                   Rectangle {
                     id: deleteLocalBtn
-                    visible: !!modelData.isLocal
+                    visible: root.eventEditingEnabled && !!modelData.isLocal
                     anchors.right: parent.right
                     anchors.rightMargin: Style.space(10)
                     anchors.verticalCenter: parent.verticalCenter

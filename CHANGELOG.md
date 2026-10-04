@@ -2,6 +2,13 @@
 
 All notable changes to `fred.clock` (`clock-fred-tamlinux`) will be documented in this file.
 
+## [2.0.0] - Unreleased
+
+### Changed
+- The widget loads in the Tamlinux shell through `Tam.Commons` and `Tam.Ui`. It no longer imports the Omarchy shell modules or registers an `omarchy.clock` IPC target.
+- Middle click calls the host `openTimezoneMenu` action.
+- Calendar fetch and local event edits stay on the existing helpers. `TAMLINUX_CLOCK_OFFLINE=1` suppresses fetch and refuses event edits; that flag is the isolated proof, not the daily profile.
+
 ## [1.3.3] - 2026-09-18
 
 ### Added
