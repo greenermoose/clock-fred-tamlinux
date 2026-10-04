@@ -1,6 +1,6 @@
 # Clock with Countdown Badge (`fred.clock`)
 
-Fred's [Tamlinux](https://github.com/greenermoose/tamlinux) clock and calendar plugin, a shell bar widget featuring upcoming event countdowns, multi-calendar support, and seamless in-place replacement of the stock Omarchy clock.
+Part of Fred's `fred.*` plugin suite for [Tamlinux](https://github.com/greenermoose/tamlinux) (Fred's personal Linux workstation environment): a shell bar widget featuring upcoming event countdowns, multi-calendar support, and seamless in-place replacement of the stock Omarchy clock.
 
 ![Clock with Countdown Badge](assets/screenshot.png)
 
