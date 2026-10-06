@@ -42,9 +42,10 @@ BarWidget {
     ? displayText + " • " + countdownBadge
     : displayText
 
-  readonly property string omarchyPath: Quickshell.env("OMARCHY_PATH") || ""
+  // Tamlinux's own commands, by absolute path: TAMLINUX_BIN, else ~/.local/bin.
+  readonly property string tamBin: Quickshell.env("TAMLINUX_BIN") || (Quickshell.env("HOME") + "/.local/bin")
   readonly property var pyEnv: ["HOME", "TZ", "LANG", "XDG_CONFIG_HOME", "XDG_CACHE_HOME"]
-  readonly property var notifyEnv: ["HOME", "XDG_RUNTIME_DIR", "WAYLAND_DISPLAY", "DBUS_SESSION_BUS_ADDRESS", "OMARCHY_PATH"]
+  readonly property var notifyEnv: ["HOME", "XDG_RUNTIME_DIR", "WAYLAND_DISPLAY", "DBUS_SESSION_BUS_ADDRESS"]
 
   readonly property alias manageProc: manageProc
 
@@ -65,13 +66,12 @@ BarWidget {
 
   Launch {
     id: notifyProc
-    exe: root.omarchyPath !== "" ? root.omarchyPath + "/bin/omarchy-notification-send" : ""
+    exe: root.tamBin + "/tam-notification-send"
     envKeys: root.notifyEnv
     deadlineMs: 10000
   }
 
   function notify(title, message) {
-    if (!root.omarchyPath || root.omarchyPath === "") return
     var truncTitle = String(title || "").slice(0, 200)
     var truncMsg = String(message || "").slice(0, 200)
     notifyProc.args = [truncTitle, truncMsg]

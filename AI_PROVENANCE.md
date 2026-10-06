@@ -72,3 +72,8 @@ Cursor `3.23.12` (`composer`) rewrote `fred.clock` to 2.0.0 on
 refuse fetch and event edits; the daily profile keeps the calendar helpers.
 Not tagged or released.
 [Session record](docs/ai/2026-10-03-shell-independent-2.0.0.md).
+
+## 2026-10-06 Tamlinux-only dependencies
+
+Claude Code `2.1.291` (`claude-opus-5-5`) removed the last Omarchy dependencies on `develop/2.0.0` and added a test that keeps them out. Notifications run `tam-notification-send` by absolute path from `TAMLINUX_BIN`, falling back to `~/.local/bin`. `OMARCHY_PATH` is no longer read or copied into the closed environment. Not tagged or released.
+[Session record](docs/ai/2026-10-06-tamlinux-only-dependencies.md).
