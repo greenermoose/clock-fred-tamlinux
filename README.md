@@ -1,5 +1,9 @@
 # Clock with Countdown Badge (`fred.clock`)
 
+> [!IMPORTANT]
+> **Repository Frozen:** This repository is frozen and retained for historical reference as the Omarchy 1.x release suite. Active Tamlinux development for `fred.clock` has moved to the unified [Tamlinux](https://github.com/greenermoose/tamlinux) repository under [`desktop/plugins/fred.clock/`](https://github.com/greenermoose/tamlinux/tree/main/desktop/plugins/fred.clock).
+
+
 Part of Fred's `fred.*` plugin suite for [Tamlinux](https://github.com/greenermoose/tamlinux) (Fred's personal Linux workstation environment): a shell bar widget featuring upcoming event countdowns, multi-calendar support, and seamless in-place replacement of the stock Omarchy clock.
 
 ![Clock with Countdown Badge](assets/screenshot.png)
